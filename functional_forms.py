@@ -4,10 +4,11 @@
 
 import numpy as np
 from sympy import sqrt, exp, sin, cos, pi
+import sympy as sym
+from sympy.utilities import lambdify
 from scipy.misc import factorial
 import sys
 
-###########################################################################
 ####################################################################################################    
 def get_eij(component,aij,rij,bij,functional_form='stone',slater_correction=True):
     '''Calls the relevant calc_energy routine that will compute the
@@ -49,10 +50,8 @@ def get_eij(component,aij,rij,bij,functional_form='stone',slater_correction=True
         sys.exit()
 
 ####################################################################################################    
-###########################################################################
 
 
-###########################################################################
 ####################################################################################################    
 def get_exchange_energy(aij,rij,bij,functional_form='stone',k=0.001):
     '''For a given pair of atoms i and j, with associated distance rij and
@@ -66,11 +65,9 @@ def get_exchange_energy(aij,rij,bij,functional_form='stone',k=0.001):
         return aij*exp(-bij*rij)
     else:
         raise NotImplementedError('Unknown functional form')
-###########################################################################
 ####################################################################################################    
 
 
-###########################################################################
 ####################################################################################################    
 def get_charge_penetration_energy(aij,rij,bij,functional_form='stone',k=0.001):
     '''For a given pair of atoms i and j, with associated distance rij and
@@ -86,11 +83,9 @@ def get_charge_penetration_energy(aij,rij,bij,functional_form='stone',k=0.001):
         return -aij*exp(-bij*rij)
     else:
         raise NotImplementedError('Unknown functional form')
-###########################################################################
 ####################################################################################################    
 
 
-###########################################################################
 ####################################################################################################    
 def get_multipole_energy(qi,qj,rij,bij,slater_correction=False):
     '''For a given pair of atoms i and j, with associated distance rij and
@@ -109,11 +104,9 @@ def get_multipole_energy(qi,qj,rij,bij,slater_correction=False):
     '''
     damping_factor = get_damping_factor(rij,bij,1,slater_correction)
     return damping_factor*(qi*qj/rij)
-###########################################################################
 ####################################################################################################    
 
 
-###########################################################################
 ####################################################################################################    
 def get_dispersion_energy(Cij,rij,bij,slater_correction):
     '''Ci is array containing C6 through C12 coefficients.
@@ -125,11 +118,9 @@ def get_dispersion_energy(Cij,rij,bij,slater_correction):
         #dispersion_energy -= get_damping_factor(y*rij,i)*Cij[i/2-3]/(rij**i)
 
     return dispersion_energy
-###########################################################################
 ####################################################################################################    
 
 
-###########################################################################
 ####################################################################################################    
 def get_damping_factor(rij,bij,n,slater_correction):
     '''Computes the standard Tang-Toennies damping factor, see
@@ -154,11 +145,9 @@ def get_damping_factor(rij,bij,n,slater_correction):
         sum += (x**i)/factorial(i)
 
     return 1.0 - np.exp(-x)*sum
-###########################################################################
 ####################################################################################################    
 
 
-###########################################################################
 ####################################################################################################    
 def get_exact_slater_overlap(bi,bj,rij):
     '''Exact form of the slater overlap. Only applies if bi != bj;
@@ -175,20 +164,20 @@ def get_exact_slater_overlap(bi,bj,rij):
     # Note that prefactor differs slightly from AJM derivation in order to
     # keep proportional to the approximate slater overlap
     #prefactor = pi*0.25*rij**3
-    prefactor = 0.25*rij**3
+    #prefactor = 0.25*rij**3
+    prefactor = 0.25*sqrt(bi*bj)**3
+    #prefactor = 1
 
     term1 = (exp(t*rij) - exp(-t*rij))*(rij**2 + 2*rij/u + 2/u**2)
     term2 = -exp(t*rij)*(rij**2 - 2*rij/t + 2/t**2)
     term3 = exp(-t*rij)*(rij**2 + 2*rij/t + 2/t**2)
-    polynomial = 1/(t*u*rij**4)*(term1 + term2 + term3)
+    polynomial = 1/(t*u*rij)*(term1 + term2 + term3)
 
     # Sqrt to account for the fact that this will be computed twice.
     return prefactor*polynomial
-###########################################################################
 ####################################################################################################    
 
 
-###########################################################################
 ####################################################################################################    
 def get_approximate_slater_overlap(bij,rij,normalized=True):
     '''Computes the approximate form of the slater overlap, which is only
@@ -202,11 +191,9 @@ def get_approximate_slater_overlap(bij,rij,normalized=True):
     else:
         return rij**2/bij + 3*rij/bij**2 + 3/bij**3
     
-###########################################################################
 ####################################################################################################    
 
 
-###########################################################################
 ####################################################################################################    
 ## LIST OF SPHERICAL HARMONIC FUNCTIONS ##
 # http://en.wikipedia.org/wiki/Table_of_spherical_harmonics#Real_spherical_harmonics
@@ -226,7 +213,10 @@ def y21c(theta, phi): return np.sqrt(3)*sin(2*phi)*cos(theta)       #d_xz
 def y22s(theta, phi): return np.sqrt(0.75)*sin(phi)**2*sin(2*theta) #d_xy
 def y22c(theta, phi): return np.sqrt(0.75)*sin(phi)**2*cos(2*theta) #d_x2-y2
 
-real_sph_harm = { 'y00' : y00 ,\
+    ## y30 = cos(phi)*(2*cos(phi)**2 -3*sin(phi)**2)
+    ## y32 = sin(phi)*sin(2*phi)*cos(2*theta)
+
+sym_real_sph_harm = { 'y00' : y00 ,\
                   'y10' : y10 ,\
                   'y11s': y11s,\
                   'y11c': y11c,\
@@ -236,13 +226,16 @@ real_sph_harm = { 'y00' : y00 ,\
                   'y22s': y22s,\
                   'y22c': y22c, }
 
-    ## y30 = cos(phi)*(2*cos(phi)**2 -3*sin(phi)**2)
-    ## y32 = sin(phi)*sin(2*phi)*cos(2*theta)
-###########################################################################
+# Numpy routines of spherical harmonics
+theta, phi = sym.symbols('theta phi')
+np_real_sph_harm = {
+        k : lambdify((theta,phi),v(theta,phi),modules='numpy') 
+            for (k,v) in sym_real_sph_harm.items() }
+
 ####################################################################################################    
 
 
-###########################################################################
+
 ####################################################################################################    
 def get_anisotropic_ai(sph_harm,a,Aangular,rij,theta,phi):
     '''For a given pair of atoms i and j, with associated distance (rad),
@@ -263,13 +256,21 @@ def get_anisotropic_ai(sph_harm,a,Aangular,rij,theta,phi):
     '''
 
     A = 1
+
+    # Determine if theta, phi values are numerical arrays or symbols, as we
+    # need to use different function dictionaries to handle the two data types
+    if type(theta).__module__ == np.__name__:
+        real_sph_harm = np_real_sph_harm
+    else:
+        real_sph_harm = sym_real_sph_harm
+
+
     for (aang,yn) in zip(Aangular,sph_harm):
         A += aang*real_sph_harm[yn](theta,phi)
 
     A *= a
 
     return A
-###########################################################################
 ####################################################################################################    
 
 
