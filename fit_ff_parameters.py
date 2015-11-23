@@ -1,5 +1,5 @@
 #!/share/apps/python
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 # Standard Packages
 import numpy as np
@@ -134,8 +134,9 @@ class FitFFParameters:
 
         ###########################################################################
         ################## Program-Defined Class Variables ########################
-        # Program-Defined Class Variables, below, can be changed as necessary,
-        # but should serve as good defaults in most cases.
+        # Program-Defined Class Variable defaults, below, can be redefined in
+        # the .param file as necessary, but should be left unchanged in most
+        # cases.
 
         # ----------------------------------------------------------------------
         # General Variables; Sets names and types of energy components that
@@ -219,6 +220,7 @@ class FitFFParameters:
         # If set to true, fits a final A parameter to errors in the total
         # energy, in an effort to reduce systematic errors in the total energy
         self.fit_residual_errors = False
+        #self.fit_residual_errors = True
 
         # ----------------------------------------------------------------------
         # Functional Form Variables; controls options related to the
@@ -232,6 +234,7 @@ class FitFFParameters:
         # correction should correspond to the exact Slater overlap correction
         # or a more approximate form, which is only formally exact for bi=bj.
         self.exact_radial_correction = False
+        #self.exact_radial_correction = True
 
         # Choose damping method for electrostatic interactions. Currently
         # accepted options are 'None' and 'Tang-Toennies'
@@ -511,7 +514,7 @@ class FitFFParameters:
         print 'Reading in information from the parameter file.'
 
         # Initialize arrays for A,B,C parameters as well as charges
-        self.Aparams = [ [] for i in xrange(self.ncomponents - 2) ] # 4 components; exch, elst, ind, dhf
+        self.Aparams = [ [] for i in xrange(self.ncomponents) ] # 4 components; exch, elst, ind, dhf
         self.anisotropic_atomtypes = []
         self.anisotropic_symmetries = {}
         self.exponents1 = []
@@ -525,6 +528,17 @@ class FitFFParameters:
         self.fixed_atomtypes = {}
 
         with open(self.param_file,'r') as f:
+            # Read in any changes to default parameters:
+            f.readline()
+            line = f.readline().split()
+            while len(line) > 0:
+                settyp = type(getattr(self,line[0]))
+                if settyp == bool and line[1].lower() == 'false':
+                    setattr(self,line[0],False)
+                else:
+                    setattr(self,line[0],settyp(line[1]))
+                line = f.readline().split()
+
             # Read A parameters from file:
             #   Order is: Exchange, Electrostatics, Induction, DHF
             error = '''Atomtypes need to be defined in the same order and with
@@ -559,13 +573,32 @@ class FitFFParameters:
                 line = f.readline().split()
             line = f.readline().split()
             count = 0
-            while len(line) > 0:
-                if self.fixed_atomtypes[line[0]] != count:
-                    print error
-                    sys.exit('Program exiting.')
-                self.Aparams[3].append([float(i) for i in line[1:]])
-                count += 1
+            print self.fit_residual_errors
+            if self.fit_residual_errors:
+                while line[0] != 'RESIDUALS':
+                    if self.fixed_atomtypes[line[0]] != count:
+                        print error
+                        sys.exit('Program exiting.')
+                    self.Aparams[3].append([float(i) for i in line[1:]])
+                    count += 1
+                    line = f.readline().split()
+                count = 0
                 line = f.readline().split()
+                while len(line) > 0:
+                    if self.fixed_atomtypes[line[0]] != count:
+                        print error
+                        sys.exit('Program exiting.')
+                    self.Aparams[5].append([float(i) for i in line[1:]])
+                    count += 1
+                    line = f.readline().split()
+            else:
+                while len(line) > 0:
+                    if self.fixed_atomtypes[line[0]] != count:
+                        print error
+                        sys.exit('Program exiting.')
+                    self.Aparams[3].append([float(i) for i in line[1:]])
+                    count += 1
+                    line = f.readline().split()
 
             # Read in anisotropic atomtypes
             f.readline()
@@ -628,8 +661,6 @@ class FitFFParameters:
                 b = float(f.readline().split()[1])
                 self.exponents2.append(b)
             self.save_exponents = {}
-            print self.atoms1
-            print self.atoms2
             all_atoms = self.atoms1 + self.atoms2
             exponents = self.exponents1 + self.exponents2
             unique_atoms = set(all_atoms)
@@ -689,7 +720,6 @@ class FitFFParameters:
             f.readline()
             self.eff_mu = float(f.readline().split()[1])
             self.eff_kt = float(f.readline().split()[1])
-
 
         return
 ####################################################################################################    
@@ -1573,8 +1603,6 @@ class FitFFParameters:
             # certain cases (particularly if a fit does not look good) these
             # values can be made smaller in order to tighten convergence
             # criteria.
-            pgtol=1e-13 
-            ftol=1e-15
             maxiter=5000
             pgtol=1e-15 
             ftol=1e-17
@@ -1636,7 +1664,7 @@ class FitFFParameters:
 
 
 ####################################################################################################    
-    def subtract_hard_constraint_energy(self):
+    def subtract_hard_constraint_energy(self,tol=1e-3):
         '''Calculate energy known on the basis of hard constraints; eliminate
         this energy from the energy to be fit.
 
@@ -2282,6 +2310,10 @@ class FitFFParameters:
         '''
         if self.component != 4:
             print 'This subroutine should not be called except to calculate the dispersion energy (self.component = 4).'
+            sys.exit()
+
+        if self.exact_radial_correction:
+            print 'Dispersion coefficients cannot be accurately calculated for the exact Slater overlap; Program exiting.'
             sys.exit()
 
         dispersion_energy = np.zeros_like(self.qm_energy[self.component])
