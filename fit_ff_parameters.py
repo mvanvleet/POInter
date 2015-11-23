@@ -2426,6 +2426,7 @@ class FitFFParameters:
             if self.component == 0:
                 f.write('########################## FF Fitting Summary ###########################\n')
                 f.write(long_break)
+                f.write('Program Version: '+ __version__ + '\n')
                 f.write('Short-range Functional Form: '+str(self.functional_form)+'\n')
                 f.write('Combination Rules: aij = '+str(self.aij_combination_rule)+'\n')
                 f.write('                   bij = '+str(self.bij_combination_rule)+'\n')
