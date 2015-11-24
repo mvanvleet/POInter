@@ -93,8 +93,9 @@ class FitFFParameters:
                 output_file='coeffs.out',
                 slater_correction=True,
                 fit_bii=False,
-                aij_combination_rule='geometric_mean',
+                aij_combination_rule='geometric',
                 bij_combination_rule='geometric_mean',
+                cij_combination_rule='geometric',
                 functional_form='born-mayer'):
 
         '''Initilialize input variables and run the main fitting code.
@@ -122,6 +123,7 @@ class FitFFParameters:
         #   bij: 'saptff', 'waldman-hagler5', 'geometric_mean', 'arithmetic_mean'
         self.aij_combination_rule = aij_combination_rule
         self.bij_combination_rule = bij_combination_rule
+        self.cij_combination_rule = cij_combination_rule
 
         # Functional form can be chosen to either be the Born-Mayer or Stone
         # potentials; see Stone's book for more details.
@@ -239,7 +241,10 @@ class FitFFParameters:
         # Choose damping method for electrostatic interactions. Currently
         # accepted options are 'None' and 'Tang-Toennies'
         self.electrostatic_damping_type = 'None'
-        #self.electrostatic_damping_type = 'Tang-Toennies'
+
+        # When fitting anisotropic parameters, choose whether or not to fit
+        # anisotropic dispersion.
+        self.fit_anisotropic_dispersion = True
 
         # ----------------------------------------------------------------------
         # ----------------------------------------------------------------------
@@ -309,7 +314,6 @@ class FitFFParameters:
         # are isotropic/anisotropic and to be fit/constrained.
         self.initialize_parameters()
 
-
         # Fit parameters for the exchange, electrostatics, induction, and dhf
         # energy components and output results to output files:
         ff_energy = np.zeros_like(self.qm_energy[6])
@@ -328,10 +332,17 @@ class FitFFParameters:
             self.component = i
             ff_energy += self.fit_component_parameters()
 
-        # Compute the dispersion energy and output to file; no parameters are
-        # fit here
+        # Compute the dispersion energy and output to file; parameters may not
+        # be fit here
         self.component = 4
-        ff_energy += self.calc_dispersion_energy()
+        if self.fit_anisotropic_dispersion and self.anisotropic_atomtypes:
+            # Subtract one free parameter per atomtype; a0 is constrained to
+            # be the input (isotropic) cn coefficient
+            self.n_isotropic_params -= 1
+            ff_energy += self.fit_component_parameters()
+            self.n_isotropic_params += 1
+        else:
+            ff_energy += self.calc_dispersion_energy()
 
         # If fitting the residual errors, compute this energy and output to
         # file
@@ -524,6 +535,8 @@ class FitFFParameters:
         self.drude_charges1 = []
         self.drude_charges2 = []
 
+        self.Cparams = {}
+
         # Initialize list of all hard constraints
         self.fixed_atomtypes = {}
 
@@ -664,6 +677,7 @@ class FitFFParameters:
             all_atoms = self.atoms1 + self.atoms2
             exponents = self.exponents1 + self.exponents2
             unique_atoms = set(all_atoms)
+            print unique_atoms
             if self.handle_parameter_conflicts == 'average_exponents':
                 for atom in unique_atoms:
                     self.save_exponents[atom] = np.mean([exponents[i] 
@@ -692,6 +706,16 @@ class FitFFParameters:
                 constraint = f.readline().split()
                 constraint = [float(i) for i in constraint[1:]]
                 self.Cparams2.append(constraint)
+
+            Cparams_all = np.sqrt(self.Cparams1 + self.Cparams2)
+            for i,atom in enumerate(all_atoms):
+                if self.Cparams.has_key(atom) and \
+                        np.all(self.Cparams[atom] - Cparams_all[i]):
+                    error_msg = 'Not all exponents for atomtype '+atom+\
+                    ' are the same! Make sure each atomtype has only one set of A and B parameters.'
+                    sys.exit(error_msg)
+                else:
+                    self.Cparams[atom] = Cparams_all[i]
 
             # Read multipole file names
             f.readline()
@@ -751,7 +775,8 @@ class FitFFParameters:
         '''
         # Compute cross-terms for exponents and dispersion coefficients.
         self.combine_exponents()
-        self.combine_Cparams()
+        # TEST
+        ## self.combine_Cparams()
 
         # Read in multipole energies from orient, if necessary.
         if self.read_multipole_energy_from_orient:
@@ -976,7 +1001,7 @@ class FitFFParameters:
 
 
 ####################################################################################################    
-    def combine_Cparams(self):
+    def combine_Cparam(self,ci,cj,combination_rule='geometric'):
         '''Use combination rule for dispersion coefficients (see below) to explicitly
         create C^n_{ij} values.
 
@@ -994,16 +1019,24 @@ class FitFFParameters:
             this routine only gets called once.
 
         '''
-        # Initialize array:
-        self.Cparams = [[ [] for j in xrange(self.natoms2) ] 
-                                for i in xrange(self.natoms1) ]
-        # Combination rule for Cparams is as follows:
-        #      Cn_ij = sqrt(Cn_i*Cn_j) 
-        for i,ci in enumerate(self.Cparams1):
-            for j,cj in enumerate(self.Cparams2):
-                constraint  = [ np.sqrt(k[0]*k[1]) for k in zip(ci,cj)]
-                self.Cparams[i][j] = constraint
-        return
+
+        if combination_rule == 'geometric':
+            cij = ci*cj
+        else:
+            print combination_rule + ' not a known combination rule.'
+            sys.exit()
+
+        return cij
+        ## # Initialize array:
+        ## self.Cparams = [[ [] for j in xrange(self.natoms2) ] 
+        ##                         for i in xrange(self.natoms1) ]
+        ## # Combination rule for Cparams is as follows:
+        ## #      Cn_ij = sqrt(Cn_i*Cn_j) 
+        ## for i,ci in enumerate(self.Cparams1):
+        ##     for j,cj in enumerate(self.Cparams2):
+        ##         constraint  = [ np.sqrt(k[0]*k[1]) for k in zip(ci,cj)]
+        ##         self.Cparams[i][j] = constraint
+        ## return
 ####################################################################################################    
 
 
@@ -1434,6 +1467,15 @@ class FitFFParameters:
             Higher order drude oscillator energy.
 
         '''
+        # If all drude charges are zero, skip oscillator convergence:
+        if np.allclose(self.drude_charges1,np.zeros_like(self.drude_charges1)) \
+            and np.allclose(self.drude_charges2,np.zeros_like(self.drude_charges2)):
+            print 'No drude oscillators, so skipping oscillator convergence step.'
+            self.edrude_ind = np.zeros_like(self.qm_energy[6])
+            self.edrude_dhf = np.zeros_like(self.qm_energy[6])
+            return self.edrude_ind, self.edrude_dhf
+
+        # Otherwise, get drude oscillator energy from other modules:
         if not self.only_scale_exchange_bii:
             print 'WARNING: Exponents used in TT damping function arise from '+\
             'the exchange fit, and have not been optimized for the drude '+\
@@ -1531,12 +1573,16 @@ class FitFFParameters:
 
         '''
 
+        print '-------------'
+        print 'Optimizing parameters for ' + self.energy_component_names[self.component]
+        print '-------------'
+
         # To speed up calculations, subtract off energy that is already known
         # on the basis of hard constraints.
         qm_fit_energy = self.subtract_hard_constraint_energy()
 
         # Add additional parameters for scaling exponents, if necessary
-        if self.fit_bii == True:
+        if self.fit_bii:
             # Add one additional parameter per atomtype to account for scaling
             # exponents
             self.n_isotropic_params += 1
@@ -1548,6 +1594,7 @@ class FitFFParameters:
                                     if k in self.fit_anisotropic_atomtypes])
         ntot_params = ntot_isotropic_params + ntot_anisotropic_params
 
+        # Set soft-constraints
         if self.constrain_ab_positive:
             if self.functional_form == 'born-mayer':
                 abound = (0,1e3)
@@ -1574,7 +1621,6 @@ class FitFFParameters:
                                 [unbound for i in v]
                                for k,v in self.anisotropic_symmetries.items() \
                                     if k in self.fit_anisotropic_atomtypes ]
-
             tmp = []
             for i in bounds_iso:
                 tmp.extend(i)
@@ -1586,6 +1632,8 @@ class FitFFParameters:
 
             bnds = bounds_iso + bounds_aniso
 
+        # Perform initial energy call to set up function and derivative
+        # subroutines
         p0=np.array([1 for i in xrange(ntot_params)])
         self.qm_fit_energy = np.array(qm_fit_energy)
 
@@ -1689,6 +1737,9 @@ class FitFFParameters:
         print 'Subtracting off energy from hard constraints.'
         # Initialize fit array
         qm_fit_energy = np.copy(self.qm_energy[self.component])
+
+        if self.component == 4: #dispersion
+            return qm_fit_energy
 
         # Certain required functions are written symbolically (which will be
         # important during the optimization), but need to be calculated
@@ -2086,8 +2137,12 @@ class FitFFParameters:
 
                     ij = i*self.natoms2 + j
                     ji = j*self.natoms1 + i
-                    eij = self.calc_sym_eij(i,j,r[ij], Ai, Aj, \
-                                        theta1[ij], theta2[ji], phi1[ij], phi2[ji])
+                    if self.component != 4:
+                        eij = self.calc_sym_eij(i,j,r[ij], Ai, Aj, \
+                                            theta1[ij], theta2[ji], phi1[ij], phi2[ji])
+                    else:
+                        eij = self.calc_sym_disp_ij(i,j,r[ij], Ai, Aj, \
+                                            theta1[ij], theta2[ji], phi1[ij], phi2[ji])
                     ff_energy += eij
 
             # Use sympy to compute the deriviative of ff_energy
@@ -2313,8 +2368,10 @@ class FitFFParameters:
             sys.exit()
 
         if self.exact_radial_correction:
-            print 'Dispersion coefficients cannot be accurately calculated for the exact Slater overlap; Program exiting.'
+            print 'Dispersion energies are not implemented for the exact Slater overlap; Program exiting.'
             sys.exit()
+
+        print 'Evaluating Dispersion energies from input Cn coefficients.'
 
         dispersion_energy = np.zeros_like(self.qm_energy[self.component])
         for i in xrange(self.natoms1):
@@ -2322,15 +2379,19 @@ class FitFFParameters:
             for j in xrange(self.natoms2):
                 atom2 = self.atoms2[j]
 
-                cij = self.Cparams[i][j]
+                ci = self.Cparams[atom1]
+                cj = self.Cparams[atom2]
+                cij = self.combine_Cparam(ci,cj,self.cij_combination_rule)
                 rij = self.r12[i][j]
-                # Note, currently the dispersion energy calculation doesn't
-                # allow for optimization of the bij parameters.
+                # Note, for now the dispersion energy calculation doesn't
+                # allow for optimization of bij parameters.
                 bij = self.exponents[i][j]
 
-                dispersion_energy += \
-                    functional_forms.get_eij(self.component,cij,rij,bij,
-                                self.functional_form,self.slater_correction)
+                for n in range(6,14,2):
+                    cijn = cij[n/2 -3]
+                    dispersion_energy += \
+                        functional_forms.get_dispersion_energy(n,cijn,rij,bij,
+                                    self.slater_correction)
 
         # Output results to files
         self.write_energy_file(dispersion_energy)
@@ -2342,6 +2403,94 @@ class FitFFParameters:
 
 
         return dispersion_energy
+####################################################################################################    
+
+
+####################################################################################################    
+    def calc_sym_disp_ij(self, i, j, rij, Ai, Aj, theta1, theta2, phi1, phi2):
+        '''Symbollically compute the pairwise interaction energy between atom
+        i in monomer 1 and atom j in monomer 2.
+
+        Parameters
+        ----------
+        i : int
+            Index for atom i in monomer 1.
+        j : int
+            Index for atom j in monomer 2.
+        rij : symbol
+            Interatomic distance between atoms i and j.
+        Ai : list of symbols
+            List of all A parameters for atom i.
+        Aj : list of symbols
+            List of all A parameters for atom j.
+        theta1 : symbol
+            Azimuthal angle (in the local coordinate system of atom i) of atom
+            i with respect to atom j.
+        theta2 : symbol
+            Azimuthal angle (in the local coordinate system of atom j) of atom
+            j with respect to atom i.
+        phi1 : symbol
+            Polar angle (in the local coordinate system of atom i) of atom
+            i with respect to atom j.
+        phi2 : symbol
+            Polar angle (in the local coordinate system of atom j) of atom
+            j with respect to atom i.
+        
+        Returns
+        -------
+        eij : symbolic expression
+            Pairwise dispersion energy between atoms i and j.
+
+        '''
+        # Calculate exponent
+        if self.fit_bii:
+            if not self.skip_atom1[i]:
+                bi = Ai[-1]*self.exponents1[i] # exponent scaling factor is last parameter
+            else:
+                bi = self.exponents1[i]
+            if not self.skip_atom2[j]:
+                bj = Aj[-1]*self.exponents2[j] # exponent scaling factor is last parameter
+            else:
+                bj = self.exponents2[j]
+            bij = self.combine_exponent(bi,bj,self.bij_combination_rule)
+        else:
+            bi = self.exponents1[i]
+            bj = self.exponents2[j]
+            bij = self.exponents[i][j]
+
+        # Calculate the A coefficient for each atom. This
+        # coefficient is computed differently if the atom is
+        # isotropic or anisotropic. 
+        eij = 0 
+        for n in range(6,14,2):
+            if self.atoms1_anisotropic[i]:
+                sph_harm = self.anisotropic_symmetries[self.atoms1[i]]
+                a = self.Cparams[self.atoms1[i]][n/2-3]
+                if (not self.skip_atom1[i]) and self.fit_bii:
+                    Aangular = Ai[0:-1]
+                else:
+                    Aangular = Ai[0:]
+                ai = functional_forms.get_anisotropic_ai(sph_harm, a,Aangular,rij,theta1,phi1)
+            else: #if isotropic
+                ai = self.Cparams[self.atoms1[i]][n/2-3]
+            if self.atoms2_anisotropic[j]:
+                sph_harm = self.anisotropic_symmetries[self.atoms2[j]]
+                a = self.Cparams[self.atoms2[j]][n/2-3]
+                if (not self.skip_atom2[j]) and self.fit_bii:
+                    Aangular = Aj[0:-1]
+                else:
+                    Aangular = Aj[0:]
+                aj = functional_forms.get_anisotropic_ai(sph_harm,a,Aangular,rij,theta2,phi2)
+            else: #if isotropic
+                aj = self.Cparams[self.atoms2[j]][n/2-3]
+
+            aij = self.combine_prefactor(ai,aj,bi,bj,bij,self.aij_combination_rule)
+
+            # Calculate the ff energy for the atom pair.
+            eij += functional_forms.get_dispersion_energy(n,aij,rij,bij,
+                                self.slater_correction)
+
+        return eij
 ####################################################################################################    
 
 
@@ -2630,6 +2779,14 @@ class FitFFParameters:
         '''Testing subroutine. Changes frequently depending on what I need to
         debug.
         '''
+
+        print 'Dispersion tests:'
+
+        self.component = 4
+        #self.calc_dispersion_energy()
+        self.fit_component_parameters()
+
+        sys.exit()
 
         ## # polarizability check
         ## from calculate_molecular_polarizability import Drudes

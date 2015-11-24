@@ -10,7 +10,7 @@ from scipy.misc import factorial
 import sys
 
 ####################################################################################################    
-def get_eij(component,aij,rij,bij,functional_form='stone',slater_correction=True):
+def get_eij(component,aij,rij,bij,functional_form='born-mayer',slater_correction=True):
     '''Calls the relevant calc_energy routine that will compute the
     interaction energy between atoms with parameters Ai, Aj, bij, and pairwise
     distance rij. Component is an indexing number that maps as follows:
@@ -39,10 +39,8 @@ def get_eij(component,aij,rij,bij,functional_form='stone',slater_correction=True
     elif component == 3:
         return get_charge_penetration_energy(aij,rij,bij,functional_form)
     elif component == 4:
-        # For dispersion, what we really should have entered is the cij
-        # coefficients as a list, rather than a single aij parameter. 
-        cij = aij
-        return get_dispersion_energy(cij,rij,bij,slater_correction)
+        print 'get_eij routine should not be called to evaluate dispersion.  Call get_dispersion_energy directly.'
+        sys.exit()
     elif component == 5:
         return get_charge_penetration_energy(aij,rij,bij,functional_form)
     else:
@@ -86,39 +84,53 @@ def get_charge_penetration_energy(aij,rij,bij,functional_form='stone',k=0.001):
 ####################################################################################################    
 
 
+## ####################################################################################################    
+## def get_multipole_energy(qi,qj,rij,bij,slater_correction=False):
+##     '''For a given pair of atoms i and j, with associated distance rij and
+##     exponent bij, computes the multipole portion of the electrostatic
+##     energy of the pair according to a Coulombic functional form.
+## 
+##     Worth mentioning is our use of the standard Tang-Toennies damping factor,
+##     see 
+##     (1) McDaniel, J. G.; Schmidt, J. R. J. Phys. Chem. A 2013, 117, 2053-066.
+##     (2) Tang, K. T.; Toennies, J. P. J. Chem. Phys. 1984, 80, 3726-3741.
+##     (3) Tang, K. T.; Peter Toennies, J. Surf. Sci. 1992, 279, L203-206.
+## 
+##     This damping factor depends (see ref. 3) on the form of the repulsive part
+##     of the potential, with y = -d/dr(ln V_repulsive).
+## 
+##     '''
+##     damping_factor = get_damping_factor(rij,bij,1,slater_correction)
+##     return damping_factor*(qi*qj/rij)
+## ####################################################################################################    
+
+
 ####################################################################################################    
-def get_multipole_energy(qi,qj,rij,bij,slater_correction=False):
+def get_dispersion_energy(n,cij,rij,bij,slater_correction):
     '''For a given pair of atoms i and j, with associated distance rij and
-    exponent bij, computes the multipole portion of the electrostatic
-    energy of the pair according to a Coulombic functional form.
-
-    Worth mentioning is our use of the standard Tang-Toennies damping factor,
-    see 
-    (1) McDaniel, J. G.; Schmidt, J. R. J. Phys. Chem. A 2013, 117, 2053-066.
-    (2) Tang, K. T.; Toennies, J. P. J. Chem. Phys. 1984, 80, 3726-3741.
-    (3) Tang, K. T.; Peter Toennies, J. Surf. Sci. 1992, 279, L203-206.
-
-    This damping factor depends (see ref. 3) on the form of the repulsive part
-    of the potential, with y = -d/dr(ln V_repulsive).
-
-    '''
-    damping_factor = get_damping_factor(rij,bij,1,slater_correction)
-    return damping_factor*(qi*qj/rij)
-####################################################################################################    
-
-
-####################################################################################################    
-def get_dispersion_energy(Cij,rij,bij,slater_correction):
-    '''Ci is array containing C6 through C12 coefficients.
+    exponent bij, computes the dispersion energy of the pair according to a
+    cij/r^n functional form. Here n is the order of dispersion and cij is the
+    dispersion coefficient corresponding to the 1/r^n power dispersion.
     '''
 
-    dispersion_energy = 0.0
-    for i in range(6,14,2): # Compute C6, C8, C10, C12 dispersion energies
-        dispersion_energy -= get_damping_factor(rij,bij,i,slater_correction)*Cij[i/2-3]/(rij**i)
-        #dispersion_energy -= get_damping_factor(y*rij,i)*Cij[i/2-3]/(rij**i)
+    dispersion_energy = - get_damping_factor(rij,bij,n,slater_correction)*cij/(rij**n)
 
     return dispersion_energy
 ####################################################################################################    
+
+
+## ####################################################################################################    
+## def get_isotropic_dispersion_energy(Cij,rij,bij,slater_correction):
+##     '''Ci is array containing C6 through C12 coefficients.
+##     '''
+## 
+##     dispersion_energy = 0.0
+##     for i in range(6,14,2): # Compute C6, C8, C10, C12 dispersion energies
+##         dispersion_energy -= get_damping_factor(rij,bij,i,slater_correction)*Cij[i/2-3]/(rij**i)
+##         #dispersion_energy -= get_damping_factor(y*rij,i)*Cij[i/2-3]/(rij**i)
+## 
+##     return dispersion_energy
+## ####################################################################################################    
 
 
 ####################################################################################################    
@@ -144,7 +156,13 @@ def get_damping_factor(rij,bij,n,slater_correction):
     for i in range(1,n+1):
         sum += (x**i)/factorial(i)
 
-    return 1.0 - np.exp(-x)*sum
+    # We have to evaluate the damping factor slightly differently depending on
+    # whether get_damping_factor is being called on numpy arrays or on sympy
+    # symbols
+    if type(rij).__module__ == np.__name__:
+        return 1.0 - np.exp(-x)*sum
+    else:
+        return 1.0 - exp(-x)*sum
 ####################################################################################################    
 
 
@@ -163,10 +181,7 @@ def get_exact_slater_overlap(bi,bj,rij):
 
     # Note that prefactor differs slightly from AJM derivation in order to
     # keep proportional to the approximate slater overlap
-    #prefactor = pi*0.25*rij**3
-    #prefactor = 0.25*rij**3
     prefactor = 0.25*sqrt(bi*bj)**3
-    #prefactor = 1
 
     term1 = (exp(t*rij) - exp(-t*rij))*(rij**2 + 2*rij/u + 2/u**2)
     term2 = -exp(t*rij)*(rij**2 - 2*rij/t + 2/t**2)
@@ -184,13 +199,10 @@ def get_approximate_slater_overlap(bij,rij,normalized=True):
     formally exact for cases where bi=bj.
     '''
 
-    #normalized = True
-
     if normalized:
         return ((bij*rij)**2)/3 + bij*rij + 1
     else:
         return rij**2/bij + 3*rij/bij**2 + 3/bij**3
-    
 ####################################################################################################    
 
 
@@ -233,7 +245,6 @@ np_real_sph_harm = {
             for (k,v) in sym_real_sph_harm.items() }
 
 ####################################################################################################    
-
 
 
 ####################################################################################################    
@@ -286,5 +297,7 @@ def weight(energy,Eff_mu=0.005,Eff_kt=0.001):
     energy = np.array(energy)
     return 1./(np.exp((energy-Eff_mu)/Eff_kt)+1.)
 ####################################################################################################    
+
+
 
 
