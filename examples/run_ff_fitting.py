@@ -7,5 +7,6 @@ coeffs_file='coeffs.out'
 
 FitFFParameters(sapt_file, param_file, coeffs_file,
         slater_correction=True, fit_bii=True,
-        aij_combination_rule='geometric_mean',
-        bij_combination_rule='geometric_mean')
+        aij_combination_rule='geometric',
+        bij_combination_rule='geometric_mean',
+        cij_combination_rule='geometric')
