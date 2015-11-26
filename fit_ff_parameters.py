@@ -7,7 +7,7 @@ import sys
 import os
 from scipy.optimize import minimize
 from copy import copy
-import sympy as sp
+import sympy as sym
 from sympy.utilities import lambdify
 from sympy.utilities.iterables import flatten
 import itertools
@@ -371,7 +371,7 @@ class FitFFParameters:
         self.rms_error = self.calc_rmse(ff_energy)
         self.weighted_rms_error = self.calc_rmse(ff_energy, cutoff=self.weighted_rmse_cutoff)
         self.weighted_absolute_error = self.calc_mae(ff_energy, cutoff=self.weighted_rmse_cutoff)
-        self.write_output_file(ff_energy)
+        self.write_output_file()
 
         print
         print '============================================'
@@ -904,7 +904,7 @@ class FitFFParameters:
             Array of exponents bij
         
         '''
-        bi, bj = sp.symbols(" bi bj")
+        bi, bj = sym.symbols(" bi bj")
         self.combine_num_exponent = lambdify((bi,bj),self.combine_exponent(bi,bj,self.bij_combination_rule),modules='numpy')
 
         self.exponents = [ [] for i in xrange(self.natoms1)]
@@ -986,7 +986,7 @@ class FitFFParameters:
             bij = (2/(bi**(-5) + bj**(-5)))**(1.0/5)
         elif combination_rule == 'geometric_mean':
             if mode == 'sp':
-                bij = sp.sqrt(bi*bj)
+                bij = sym.sqrt(bi*bj)
             else:
                 bij = np.sqrt(bi*bj)
         elif combination_rule == 'arithmetic_mean':
@@ -1133,7 +1133,7 @@ class FitFFParameters:
             # piecewise function, in case bi and bj alternate between being
             # in and outside of tolerance
             test = (bi - bj > tol)
-            return sp.Piecewise(\
+            return sym.Piecewise(\
                     (functional_forms.get_exact_slater_overlap(bi,bj,rij),test),\
                     (functional_forms.get_approximate_slater_overlap(bij,rij), True))
         elif self.exact_radial_correction:
@@ -1791,7 +1791,7 @@ class FitFFParameters:
         # numerically here. The lambdify function converts these symbolic
         # functions to ones that can be evaulated numerically for this
         # subroutine.
-        aij, rij, bij, bi, bj = sp.symbols("aij rij bij bi bj")
+        aij, rij, bij, bi, bj = sym.symbols("aij rij bij bi bj")
         get_num_eij = \
             lambdify((aij,rij,bij),functional_forms.get_eij(self.component,aij,rij,bij,self.functional_form,self.slater_correction),modules='numpy')
         if self.slater_correction and self.exact_radial_correction:
@@ -2101,7 +2101,7 @@ class FitFFParameters:
 
         if init:
             num_params = params
-            params = sp.symbols('p0:%d'%len(params))
+            params = sym.symbols('p0:%d'%len(params))
             param_symbols = params
             params = self.map_params(params)
 
@@ -2148,8 +2148,6 @@ class FitFFParameters:
                     A_atoms2.append(params[param_map[atom2]])
                     self.skip_atom2.append(False)
                 except KeyError:
-                    ## ai = [self.Aparams[self.fixed_atomtypes[atom2]][self.component]]
-                    ## ai = [self.Aparams[self.component][self.fixed_atomtypes[atom2]]]
                     ai = self.Aparams[self.component][self.fixed_atomtypes[atom2]]
                     A_atoms2.append(ai)
                     self.skip_atom2.append(True)
@@ -2158,11 +2156,11 @@ class FitFFParameters:
             # we can finally compute the component energy of the system for each
             # data point:
             # Declare some symbols
-            r = sp.symbols('r_0:%d_0:%d'%(self.natoms1,self.natoms2))
-            theta1 = sp.symbols('theta1_0:%d_0:%d'%(self.natoms1,self.natoms2))
-            phi1 = sp.symbols('phi1_0:%d_0:%d'%(self.natoms1,self.natoms2))
-            theta2 = sp.symbols('theta2_0:%d_0:%d'%(self.natoms2,self.natoms1))
-            phi2 = sp.symbols('phi2_0:%d_0:%d'%(self.natoms2,self.natoms1))
+            r = sym.symbols('r_0:%d_0:%d'%(self.natoms1,self.natoms2))
+            theta1 = sym.symbols('theta1_0:%d_0:%d'%(self.natoms1,self.natoms2))
+            phi1 = sym.symbols('phi1_0:%d_0:%d'%(self.natoms1,self.natoms2))
+            theta2 = sym.symbols('theta2_0:%d_0:%d'%(self.natoms2,self.natoms1))
+            phi2 = sym.symbols('phi2_0:%d_0:%d'%(self.natoms2,self.natoms1))
 
             print 'Symbolically evaluating FF energy.'
             ff_energy = 0.0
@@ -2193,18 +2191,13 @@ class FitFFParameters:
 
             # Use sympy to compute the deriviative of ff_energy
             print 'Symbolically evaluating the derivative of the FF energy.'
-            dff_energy = [sp.diff(ff_energy,p) for p in param_symbols]
+            dff_energy = [sym.diff(ff_energy,p) for p in param_symbols]
 
             # Lambdify the ff_energy and dff_energy functions
             args = param_symbols, r, theta1, theta2, phi1, phi2
-            print 'Calculating numeric energies.'
-            self.evaluate_ff_energy = \
-                lambdify(flatten(args), ff_energy, modules='numpy')
-
-            print 'Calculating numeric 1st derivatives.'
-            self.evaluate_dff_energy = \
-                [ lambdify(flatten(args), i, modules='numpy') for i in dff_energy ]
-            print 'Finished calculating numeric energies and 1st derivatives'
+            print 'Calculating numeric energies and derivatives.'
+            self.evaluate_ff_energy, self.subexp = self.generate_num_f(flatten(args), ff_energy, dff_energy)
+            print 'Finished calculating numeric energies and derivatives.'
 
             # Turn multi-dimensional params list back into a 1D list
             params = num_params
@@ -2235,8 +2228,8 @@ class FitFFParameters:
 
         # Actual call to evaluate force field energy and gradient occurs here.
         try:
-            ff_energy = self.evaluate_ff_energy(*vals)
-            dff_energy = [ dp(*vals) for dp in self.evaluate_dff_energy ]
+            num_f = self.evaluate_num_f(vals, self.subexp, self.evaluate_ff_energy)
+            ff_energy, dff_energy = num_f[0], num_f[1:]
         except (FloatingPointError,ZeroDivisionError):
             print params
             raise
@@ -2450,8 +2443,8 @@ class FitFFParameters:
         self.weighted_rms_error = self.calc_rmse(dispersion_energy, cutoff=self.weighted_rmse_cutoff)
         self.weighted_absolute_error = self.calc_mae(dispersion_energy, cutoff=self.weighted_rmse_cutoff)
         self.lsq_error = 0.0
-        self.write_output_file(dispersion_energy)
 
+        self.write_output_file()
 
         return dispersion_energy
 ####################################################################################################    
@@ -2523,16 +2516,6 @@ class FitFFParameters:
             if self.atoms1_anisotropic[i]:
                 sph_harm = self.anisotropic_symmetries[self.atoms1[i]]
                 a = self.Cparams[self.atoms1[i]][n/2-3]
-                ## if self.fit_isotropic_dispersion:
-                ##     a = Ai[0]*self.Cparams[self.atoms1[i]][n/2-3]
-                ##     print '====='
-                ##     print a
-                ##     print Ai[0]
-                ##     print '====='
-                ## if (not self.skip_atom1[i]) and self.fit_bii:
-                ##     Aangular = Ai[0:-1]
-                ## else:
-                ##     Aangular = Ai[0:]
                 Aangular = Ai[ang_start:ang_end1]
                 ai = functional_forms.get_anisotropic_ai(sph_harm, a,Aangular,rij,theta1,phi1)
             else: #if isotropic
@@ -2542,13 +2525,6 @@ class FitFFParameters:
             if self.atoms2_anisotropic[j]:
                 sph_harm = self.anisotropic_symmetries[self.atoms2[j]]
                 a = self.Cparams[self.atoms2[j]][n/2-3]
-                ## if self.fit_isotropic_dispersion:
-                ##     #a *= Aj[0]
-                ##     a = Aj[0]*self.Cparams[self.atoms2[j]][n/2-3]
-                ## if (not self.skip_atom2[j]) and self.fit_bii:
-                ##     Aangular = Aj[0:-1]
-                ## else:
-                ##     Aangular = Aj[0:]
                 Aangular = Aj[ang_start:ang_end1]
                 aj = functional_forms.get_anisotropic_ai(sph_harm,a,Aangular,rij,theta2,phi2)
             else: #if isotropic
@@ -2563,6 +2539,87 @@ class FitFFParameters:
                                 self.slater_correction)
 
         return eij
+####################################################################################################    
+
+
+####################################################################################################    
+    def generate_num_f(self,fargs,f,fprime):
+        '''Using common sub expressions (CSE), take symbolic functions and
+        derivatives and return a fast numerical energy evaluation routine.
+
+        Parameters
+        ----------
+        fargs : list of sympy symbols
+            Arguments for f and fprime
+        f : sympy expression
+            Symbolic function
+        fprime : list of sympy expressions
+            Derivatives of f (need not specify which partial derivatives are
+            included; all derivatives with respect to fargs could be given as
+            input, or just a subset).
+
+        Returns
+        -------
+        fexp : list of lambda functions
+            The first element of fexp is a numerical subroutine for f; the
+            remaining elements are (in input order) expressions for each derivative contained
+            in fprime.
+        subexp : list of function substitutions
+            This list of substitution expressions is required for future
+            evaluations of fexp
+
+        '''
+        # CSE returns a 2-tuple. The first element is a list of 2-tuples containing
+        # (xi, value) pairs (sub). The second element is a list of the reduced input
+        # expression(s) with values replaced by xi (red)
+        sub, red = sym.cse([f] + fprime)
+
+        subsym = [] # List of symbols evaluated so far
+        subexp = [] # List of functions to evaluate xi
+
+        for xi, val in sub:
+            args = fargs + subsym
+            subexp.append(sym.lambdify(flatten(args), val, modules="numpy"))
+            subsym.append(xi)
+
+        args = fargs + subsym
+        fexp = [sym.lambdify(flatten(args), ired, modules="numpy") for ired in red]
+
+        return fexp, subexp
+####################################################################################################    
+
+
+####################################################################################################    
+    def evaluate_num_f(self,fargs, subexp, fexp):
+        '''Evaluate the numerical lambda function(s) fexp given a list of
+        arguments (fargs) to fexp and a list of common sub expressions (subexp) used
+        in generating fexp.
+
+        Parameters
+        ----------
+        fargs : list of numpy floats and/or arrays
+            Arguments for fexp; should match input arguments used to generate
+            fexp (see self.generate_num_f)
+        subexp : list of symbols
+            Subexpressions generated by self.generate_num_f
+        fexp : list of lambda functions
+            Numerical expressions for f and its derivatives, generated by
+            self.generate_num_f
+
+        Returns
+        -------
+        fout : list of numpy floats and/or arrays
+            Numerical output of fexp(fargs)
+
+        '''
+        fout = [ [] for i in fexp ]
+        for expr in subexp:
+            fargs.append(expr(*fargs))
+
+        for i, expr in enumerate(fexp):
+            fout[i] = expr(*fargs)
+
+        return fout
 ####################################################################################################    
 
 
@@ -2587,12 +2644,6 @@ class FitFFParameters:
         '''
         params = self.map_params(params)
         self.atom_params = {}
-        ## exponents= { atom: exp for (atom,exp) in zip(self.atoms1, self.exponents1) }
-        ## exponents2= { atom: exp for (atom,exp) in zip(self.atoms2, self.exponents2) }
-        ## # Combine exponents1 and exponents 2. Note this may cause
-        ## # overwriting values if the same atomtype has multiple exponents
-        ## # (which is a problem for other reasons...)
-        ## exponents.update(exponents2)
 
         # Collect parameters from the fitted atomtypes
         for i,atom in enumerate(self.fit_isotropic_atomtypes+self.fit_anisotropic_atomtypes):
@@ -2602,8 +2653,6 @@ class FitFFParameters:
             if self.fit_bii:
                 Aparams = params[i][:-1]
                 b *= params[i][-1]
-                # Update self.exponents array
-                #self.exponents[atom] = b
             else:
                 Aparams = params[i]
 
