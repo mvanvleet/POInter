@@ -3,6 +3,7 @@
 import numpy as np
 import sys
 import sympy as sp
+import os
 from sympy.utilities import lambdify
 
 # Local Packages
@@ -104,6 +105,12 @@ class Multipoles:
         # particles; it makes sense to just initialize delT for functions
         # containing '00'
         self.limited_delT = True
+
+        # Set file for storing pickle data
+        self.fpik = 'multipoles.pik'
+        path = os.path.abspath(__file__)
+        dir_path = os.path.dirname(path) + '/'
+        self.fpik = dir_path + self.fpik
 
         ###########################################################################
         ###########################################################################
@@ -734,6 +741,18 @@ class Multipoles:
         print 'Finished initializing derivatives for multipole moments.'
         #sys.exit()
 
+        # If cloudpickle module available, save derivatives to file
+        try:
+            import cloudpickle
+            print 'Saving multipoles to file:'
+            print self.fpik
+            with open(self.fpik,'wb') as f:
+                cloudpickle.dump(self.delT, f)
+
+        except ImportError:
+            print 'For computational efficiency, download the cloudpickle module.'
+            pass
+
         return
 ####################################################################################################    
 
@@ -860,10 +879,18 @@ class Multipoles:
 
         '''
 
+        # If delT hasn't yet been initialized, do so now
         if not self.delT:
-            # If delT hasn't yet been initialized, do so now
-            self.initialize_del_interaction_tensor()
-
+            # Try and read in interaction tensors from file
+            try:
+                import cloudpickle
+                with open(self.fpik,'rb') as f:
+                    print self.fpik
+                    self.delT = cloudpickle.load(f)
+                print 'Read in multipole derivatives from the following file:'
+                print self.fpik
+            except (ImportError, IOError):
+                self.initialize_del_interaction_tensor()
 
         r = self.r[:,i,j]
         ra = self.ra[:,i,j]
