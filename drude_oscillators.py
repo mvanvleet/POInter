@@ -122,7 +122,7 @@ class Drudes:
         # Initialize drude positions slightly off each core center if set to
         # True. Normally has little effect on convergence, but may matter in
         # some cases.
-        self.initialize_off_center = False
+        self.initialize_off_center = True
 
         # Provide cutoffs for when to treat charges and distances as
         # effectively zero:
@@ -302,20 +302,20 @@ class Drudes:
                                             for x in [xij,yij,zij] ]
             del_damp_intra = [ lambdify((qi,qj,xij,yij,zij), ddamp, modules='numpy')
                                                for ddamp in diff_damp_intra ]
-        try:
-            import cloudpickle
-        except ImportError:
-            pass
-        else:
-            with open(self.fpik,'wb') as f:
-                print 'Saving numerical subroutines for damping functions to file:'
-                print self.fpik
-                cloudpickle.dump(tt_damp_inter, f)
-                cloudpickle.dump(tt_del_damp_inter, f)
-                cloudpickle.dump(no_damp_inter, f)
-                cloudpickle.dump(no_del_damp_inter, f)
-                cloudpickle.dump(damp_intra, f)
-                cloudpickle.dump(del_damp_intra, f)
+            try:
+                import cloudpickle
+            except ImportError:
+                pass
+            else:
+                with open(self.fpik,'wb') as f:
+                    print 'Saving numerical subroutines for damping functions to file:'
+                    print self.fpik
+                    cloudpickle.dump(tt_damp_inter, f)
+                    cloudpickle.dump(tt_del_damp_inter, f)
+                    cloudpickle.dump(no_damp_inter, f)
+                    cloudpickle.dump(no_del_damp_inter, f)
+                    cloudpickle.dump(damp_intra, f)
+                    cloudpickle.dump(del_damp_intra, f)
 
 
         # Set damping functions as class variables
