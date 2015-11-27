@@ -110,6 +110,8 @@ class Drudes:
         self.natoms1 = len(self.qshell1)
         self.natoms2 = len(self.qshell2)
 
+        self.inter_damping_type = inter_damping_type
+
 
         ###########################################################################
         ###########################################################################
@@ -130,6 +132,12 @@ class Drudes:
         # Verbosity settings:
         self.verbose = True
 
+        # Filename to store damping functions
+        self.fpik = 'drude_oscillators.pik'
+        path = os.path.abspath(__file__)
+        dir_path = os.path.dirname(path) + '/'
+        self.fpik = dir_path + self.fpik
+
         ###########################################################################
         ###########################################################################
 
@@ -143,34 +151,10 @@ class Drudes:
         # Initialize multipole moment class
         self.update_multipole_moments(init=True)
 
-        # Create numerical subroutines to compute gradients for the Thole
-        # and Tang-Toennies damping functions. Note that, for all
-        # intramolecular contacts, Thole screening will be used, while all
-        # intermolecular contacts will be damped via Tang-Toennies screening.
-        print 'Creating numerical subroutines for damping functions.'
-        bij, qi, qj, xij, yij, zij = sp.symbols("bij qi qj xij yij zij")
-        if inter_damping_type == 'Tang-Toennies':
-            self.damp_inter = lambdify((bij,xij,yij,zij),\
-                                    self.get_tt_damping_factor(bij,xij,yij,zij), modules='numpy')
-            diff_damp_inter = [ sp.diff(self.get_tt_damping_factor(bij,xij,yij,zij),x)
-                                    for x in [xij,yij,zij] ]
-            self.del_damp_inter = [ lambdify((bij,xij,yij,zij),\
-                                         sp.diff(self.get_tt_damping_factor(bij,xij,yij,zij),x),\
-                                         modules='numpy') \
-                                    for x in [xij,yij,zij] ]
-        elif inter_damping_type == 'None':
-            self.damp_inter = lambda bij, xij, yij, zij : 1
-            self.del_damp_inter = [ lambda bij, xij, yij, zij : 0
-                                    for x in [xij,yij,zij] ]
-        else:
-            sys.exit('Unknown Damping Type ' + inter_damping_type)
+        # Initialize damping functions, either by reading functions in from
+        # file or generating them on the fly.
+        self.get_damping_functions()
 
-        self.damp_intra = lambdify((qi,qj,xij,yij,zij),\
-                               self.get_thole_damping_factor(qi,qj,xij,yij,zij), modules='numpy')
-        diff_damp_intra = [ sp.diff(self.get_thole_damping_factor(qi,qj,xij,yij,zij),x)
-                                        for x in [xij,yij,zij] ]
-        self.del_damp_intra = [ lambdify((qi,qj,xij,yij,zij), ddamp, modules='numpy')
-                                           for ddamp in diff_damp_intra ]
 
         ###########################################################################
         ###########################################################################
@@ -262,6 +246,90 @@ class Drudes:
             self.Mon2Multipoles.xyz1 = self.shell_xyz1
             self.Mon2Multipoles.update_direction_vectors()
 
+
+        return
+####################################################################################################    
+
+
+####################################################################################################    
+    def get_damping_functions(self):
+        '''
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        Nothing, though self.Mon[1,2]Multipoles classes are updated to reflect
+        new shell positions.
+
+        '''
+        # First, try and unpack serialized damping functions
+        try:
+            import cloudpickle
+            with open(self.fpik,'rb') as f:
+                tt_damp_inter = cloudpickle.load(f)
+                tt_del_damp_inter = cloudpickle.load(f)
+                no_damp_inter = cloudpickle.load(f)
+                no_del_damp_inter = cloudpickle.load(f)
+                damp_intra = cloudpickle.load(f)
+                del_damp_intra = cloudpickle.load(f)
+
+        # If cloudpickle module not available, or data not previously
+        # serialized, recreate damping functions.
+        except (ImportError,IOError):
+            # Create numerical subroutines to compute gradients for the Thole
+            # and Tang-Toennies damping functions. Note that, for all
+            # intramolecular contacts, Thole screening will be used, while all
+            # intermolecular contacts will be damped via Tang-Toennies screening.
+            print 'Creating numerical subroutines for damping functions.'
+            bij, qi, qj, xij, yij, zij = sp.symbols("bij qi qj xij yij zij")
+            tt_damp_inter = lambdify((bij,xij,yij,zij),\
+                                    self.get_tt_damping_factor(bij,xij,yij,zij), modules='numpy')
+            ## diff_damp_inter = [ sp.diff(self.get_tt_damping_factor(bij,xij,yij,zij),x)
+            ##                         for x in [xij,yij,zij] ]
+            tt_del_damp_inter = [ lambdify((bij,xij,yij,zij),\
+                                         sp.diff(self.get_tt_damping_factor(bij,xij,yij,zij),x),\
+                                         modules='numpy') \
+                                    for x in [xij,yij,zij] ]
+            no_damp_inter = lambda bij, xij, yij, zij : 1
+            no_del_damp_inter = [ lambda bij, xij, yij, zij : 0
+                                    for x in [xij,yij,zij] ]
+
+            damp_intra = lambdify((qi,qj,xij,yij,zij),\
+                                   self.get_thole_damping_factor(qi,qj,xij,yij,zij), modules='numpy')
+            diff_damp_intra = [ sp.diff(self.get_thole_damping_factor(qi,qj,xij,yij,zij),x)
+                                            for x in [xij,yij,zij] ]
+            del_damp_intra = [ lambdify((qi,qj,xij,yij,zij), ddamp, modules='numpy')
+                                               for ddamp in diff_damp_intra ]
+        try:
+            import cloudpickle
+        except ImportError:
+            pass
+        else:
+            with open(self.fpik,'wb') as f:
+                print 'Saving numerical subroutines for damping functions to file:'
+                print self.fpik
+                cloudpickle.dump(tt_damp_inter, f)
+                cloudpickle.dump(tt_del_damp_inter, f)
+                cloudpickle.dump(no_damp_inter, f)
+                cloudpickle.dump(no_del_damp_inter, f)
+                cloudpickle.dump(damp_intra, f)
+                cloudpickle.dump(del_damp_intra, f)
+
+
+        # Set damping functions as class variables
+        if self.inter_damping_type == 'Tang-Toennies':
+            self.damp_inter = tt_damp_inter
+            self.del_damp_inter = tt_del_damp_inter
+        elif self.inter_damping_type == 'None':
+            self.damp_inter = no_damp_inter
+            self.del_damp_inter = no_del_damp_inter
+        else:
+            sys.exit('Unknown Damping Type ' + inter_damping_type)
+
+        self.damp_intra = damp_intra
+        self.del_damp_intra = del_damp_intra
 
         return
 ####################################################################################################    
