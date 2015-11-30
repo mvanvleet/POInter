@@ -221,10 +221,6 @@ class FitFFParameters:
         # changing to achieve optimal fits.
         self.constrain_ab_positive = True
 
-        # If set to true, fits a final A parameter to errors in the total
-        # energy, in an effort to reduce systematic errors in the total energy
-        self.fit_residuals = False
-
         # ----------------------------------------------------------------------
         # Functional Form Variables; controls options related to the
         # mathematical form of the force field itself
@@ -237,7 +233,6 @@ class FitFFParameters:
         # correction should correspond to the exact Slater overlap correction
         # or a more approximate form, which is only formally exact for bi=bj.
         self.exact_radial_correction = False
-        #self.exact_radial_correction = True
 
         # Choose damping method for electrostatic interactions. Currently
         # accepted options are 'None' and 'Tang-Toennies'
@@ -250,12 +245,20 @@ class FitFFParameters:
         self.fit_dispersion = False
         self.fit_isotropic_dispersion = False
 
+        # If set to true, fits a final A parameter to errors in the total
+        # energy, in an effort to reduce systematic errors in the total energy
+        self.fit_residuals = False
+
         # ----------------------------------------------------------------------
         # ----------------------------------------------------------------------
         # The following variables should be changed rarely, if ever, and are
         # primarily included for debugging purposes:
         # ----------------------------------------------------------------------
         # ----------------------------------------------------------------------
+
+        # Choose whether or not to use common subexpression elimination to
+        # speed up parameter optimization
+        self.use_cse = True
 
         # Get source for drude oscillator energies. Can either be read in or
         # computed on the fly. Currently three computation engines exist, two
@@ -1683,7 +1686,8 @@ class FitFFParameters:
         self.qm_fit_energy = np.array(qm_fit_energy)
 
         self.final_energy_call = False
-        self.calc_ff_energy(p0, init=True)
+        self.get_eij_pairs(p0)
+        #self.calc_ff_energy(p0, init=True)
 
         # Use scipy.optimize to perform a least-squares fitting:
         # Initial paramaters are given by p0, and the weighted least squares
@@ -2066,6 +2070,189 @@ class FitFFParameters:
 
 
 ####################################################################################################    
+    def get_eij_pairs(self,params):
+        '''Compute the force field energy for a given component (exchange,
+        induction, etc.) given a set of parameters. Also return the gradient
+        of the FF energy with respect to each fit parameter.
+
+        In more detail, this subroutine works as follows:
+        The first time this function gets called (init=True), the SymPy
+        package is used to symbollically evaluate the force field energy and
+        automatically compute the gradient. Once these symbolic quantities
+        have been calculated, the lamdify function is called to generate
+        (fast) numerical subroutines for calculation of the energy and
+        gradient as a function of parameter values. All subsequent calls to
+        calc_ff_energy use these numerical subroutines when calculating the
+        force field energy.
+
+        Parameters
+        ----------
+        params : 1d tuple 
+            Tuple containing all fit parameters 
+        init : bool, optional
+            Detailed above, first call (init=True) to function requires
+            symbolic evaluation of function derivatives. Default False.
+
+        Returns
+        -------
+        ff_energy : 1darray (ndatpts)
+            Force field energy for each dimer configuration.
+        dff_energy : list of 1darrays (nparams x ndatpts)
+            Derivative of the force field energy with respect to each
+            parameter.
+
+        '''
+
+        num_params = params
+        params = sym.symbols('p0:%d'%len(params))
+        param_symbols = params
+        params = self.map_params(params)
+
+        # Construct a mapping between atomtypes to fit and the
+        # corresponding index of params that contains parameters for that
+        # atomtype
+        param_map = {}
+        paramindex = 0
+        for atomtype in self.fit_isotropic_atomtypes + self.fit_anisotropic_atomtypes:
+            if self.ignorecase:
+                param_map[atomtype.upper()] = paramindex
+                paramindex += 1
+            else:
+                param_map[atomtype] = paramindex
+                paramindex += 1
+
+
+        ## # Next we create a mapping between each atom in self.atoms1/2 and the set of parameters
+        ## # to which it corresponds. This mapping occurs for all of the atoms
+        ## # in both atoms1 and atoms2:
+        ## A_atoms1 = []
+        ## A_atoms2 = []
+        ## self.skip_atom1 = []
+        ## self.skip_atom2 = []
+        ## for i in xrange(self.natoms1):
+        ##     atom1 = self.atoms1[i]
+        ##     if self.ignorecase:
+        ##         atom1 = atom1.upper()
+        ##     # Look for atomtype atom1 in list of atoms to fit and set A; if not found,
+        ##     # flag atom1 as a constrained atomtype:
+        ##     try:
+        ##         A_atoms1.append(params[param_map[atom1]])
+        ##         self.skip_atom1.append(False)
+        ##     except KeyError:
+        ##         ai = self.Aparams[self.component][self.fixed_atomtypes[atom1]]
+        ##         A_atoms1.append(ai)
+        ##         self.skip_atom1.append(True)
+
+        ## for i in xrange(self.natoms2):
+        ##     atom2 = self.atoms2[i]
+        ##     if self.ignorecase:
+        ##         atom2 = atom2.upper()
+        ##     try:
+        ##         A_atoms2.append(params[param_map[atom2]])
+        ##         self.skip_atom2.append(False)
+        ##     except KeyError:
+        ##         ai = self.Aparams[self.component][self.fixed_atomtypes[atom2]]
+        ##         A_atoms2.append(ai)
+        ##         self.skip_atom2.append(True)
+
+        # Now that we know which set of parameters to use for each atomtype,
+        # we can finally compute the component energy of the system for each
+        # data point:
+        # Declare some symbols
+        r = sym.symbols('r_0:%d_0:%d'%(self.natoms1,self.natoms2))
+        rij, theta1ij, theta2ji, phi1ij, phi2ji = \
+                sym.symbols('rij theta1ij theta2ji phi1ij phi2ji')
+        theta1 = sym.symbols('theta1_0:%d_0:%d'%(self.natoms1,self.natoms2))
+        phi1 = sym.symbols('phi1_0:%d_0:%d'%(self.natoms1,self.natoms2))
+        theta2 = sym.symbols('theta2_0:%d_0:%d'%(self.natoms2,self.natoms1))
+        phi2 = sym.symbols('phi2_0:%d_0:%d'%(self.natoms2,self.natoms1))
+
+        print 'Generating subroutines for pairwise interactions.'
+        self.get_num_eij = {}
+        for i,atom1 in enumerate(self.atomtypes):
+            if atom1 in self.fixed_atomtypes:
+                Ai = self.Aparams[self.component][self.fixed_atomtypes[atom1]]
+            else:
+                Ai = params[param_map[atom1]]
+            for atom2 in self.atomtypes[i:]:
+                if atom2 in self.fixed_atomtypes:
+                    Aj = self.Aparams[self.component][self.fixed_atomtypes[atom2]]
+                else:
+                    Aj = params[param_map[atom2]]
+                pair = tuple(sorted([atom1, atom2]))
+
+                if self.component != 4:
+                    eij = self.calc_sym_eij(atom1, atom2 ,rij, Ai, Aj, \
+                                        theta1ij, theta2ji, phi1ij, phi2ji)
+                else:
+                    eij = self.calc_sym_disp_ij(atom1 , atom2 ,rij, Ai, Aj, \
+                                        theta1ij, theta2ji, phi1ij, phi2ji)
+
+                d_eij = [sym.diff(eij,p) for p in param_symbols]
+
+                ## for line in d_eij:
+                ##     print line
+
+                ## print '----'
+
+                args = (Ai, Aj, rij, theta1ij, theta2ji, phi1ij, phi2ji)
+                if not self.use_cse:
+                    num_eij = lambdify( args,  eij, modules='numpy')
+                    num_d_eij = [ lambdify(flatten(args), i,
+                                          modules='numpy') for i in
+                                          d_eij ]
+                    self.get_num_eij[pair] = [num_eij] + num_d_eij
+
+                else:
+                    num_eij, subexp = self.generate_num_f(flatten(args), eij, d_eij)
+
+                    self.get_num_eij[pair] = [num_eij, subexp]
+
+        return
+
+        ## for i in xrange(self.natoms1):
+        ##     Ai = A_atoms1[i]
+        ##     atom1 = self.atoms1[i]
+        ##     for j in xrange(self.natoms2):
+        ##         Aj = A_atoms2[j]
+        ##         atom2 = self.atoms2[j]
+
+        ##         # Check if Ai and Aj originate from constrained
+        ##         # parameters. If so, don't evaluate their energy, as this
+        ##         # energy was already subtracted off earlier in the
+        ##         # program. Otherwise, add their energy to the total
+        ##         # ff energy, and compute 
+        ##         if self.skip_atom1[i] and self.skip_atom2[j]:
+        ##             continue
+
+        ##         ij = i*self.natoms2 + j
+        ##         ji = j*self.natoms1 + i
+        ##         if self.component != 4:
+        ##             eij = self.calc_sym_eij(i,j,r[ij], Ai, Aj, \
+        ##                                 theta1[ij], theta2[ji], phi1[ij], phi2[ji])
+        ##         else:
+        ##             eij = self.calc_sym_disp_ij(i,j,r[ij], Ai, Aj, \
+        ##                                 theta1[ij], theta2[ji], phi1[ij], phi2[ji])
+        ##         ff_energy += eij
+
+        # Use sympy to compute the deriviative of ff_energy
+        print 'Symbolically evaluating the derivative of the FF energy.'
+        dff_energy = [sym.diff(ff_energy,p) for p in param_symbols]
+
+        # Lambdify the ff_energy and dff_energy functions
+        args = param_symbols, r, theta1, theta2, phi1, phi2
+        print 'Calculating numeric energies and derivatives.'
+        self.evaluate_ff_energy, self.subexp = self.generate_num_f(flatten(args), ff_energy, dff_energy)
+        print 'Finished calculating numeric energies and derivatives.'
+
+        # Turn multi-dimensional params list back into a 1D list
+        params = num_params
+
+        return
+####################################################################################################    
+
+
+####################################################################################################    
     def calc_ff_energy(self,params,init=False):
         '''Compute the force field energy for a given component (exchange,
         induction, etc.) given a set of parameters. Also return the gradient
@@ -2099,108 +2286,108 @@ class FitFFParameters:
 
         '''
 
-        if init:
-            num_params = params
-            params = sym.symbols('p0:%d'%len(params))
-            param_symbols = params
-            params = self.map_params(params)
+        ## if init:
+        ##     num_params = params
+        ##     params = sym.symbols('p0:%d'%len(params))
+        ##     param_symbols = params
+        ##     params = self.map_params(params)
 
-            # Construct a mapping between atomtypes to fit and the
-            # corresponding index of params that contains parameters for that
-            # atomtype
-            param_map = {}
-            paramindex = 0
-            for atomtype in self.fit_isotropic_atomtypes + self.fit_anisotropic_atomtypes:
-                if self.ignorecase:
-                    param_map[atomtype.upper()] = paramindex
-                    paramindex += 1
-                else:
-                    param_map[atomtype] = paramindex
-                    paramindex += 1
+        ##     # Construct a mapping between atomtypes to fit and the
+        ##     # corresponding index of params that contains parameters for that
+        ##     # atomtype
+        ##     param_map = {}
+        ##     paramindex = 0
+        ##     for atomtype in self.fit_isotropic_atomtypes + self.fit_anisotropic_atomtypes:
+        ##         if self.ignorecase:
+        ##             param_map[atomtype.upper()] = paramindex
+        ##             paramindex += 1
+        ##         else:
+        ##             param_map[atomtype] = paramindex
+        ##             paramindex += 1
 
 
-            # Next we create a mapping between each atom in self.atoms1/2 and the set of parameters
-            # to which it corresponds. This mapping occurs for all of the atoms
-            # in both atoms1 and atoms2:
-            A_atoms1 = []
-            A_atoms2 = []
-            self.skip_atom1 = []
-            self.skip_atom2 = []
-            for i in xrange(self.natoms1):
-                atom1 = self.atoms1[i]
-                if self.ignorecase:
-                    atom1 = atom1.upper()
-                # Look for atomtype atom1 in list of atoms to fit and set A; if not found,
-                # flag atom1 as a constrained atomtype:
-                try:
-                    A_atoms1.append(params[param_map[atom1]])
-                    self.skip_atom1.append(False)
-                except KeyError:
-                    ai = self.Aparams[self.component][self.fixed_atomtypes[atom1]]
-                    A_atoms1.append(ai)
-                    self.skip_atom1.append(True)
+        ##     # Next we create a mapping between each atom in self.atoms1/2 and the set of parameters
+        ##     # to which it corresponds. This mapping occurs for all of the atoms
+        ##     # in both atoms1 and atoms2:
+        ##     A_atoms1 = []
+        ##     A_atoms2 = []
+        ##     self.skip_atom1 = []
+        ##     self.skip_atom2 = []
+        ##     for i in xrange(self.natoms1):
+        ##         atom1 = self.atoms1[i]
+        ##         if self.ignorecase:
+        ##             atom1 = atom1.upper()
+        ##         # Look for atomtype atom1 in list of atoms to fit and set A; if not found,
+        ##         # flag atom1 as a constrained atomtype:
+        ##         try:
+        ##             A_atoms1.append(params[param_map[atom1]])
+        ##             self.skip_atom1.append(False)
+        ##         except KeyError:
+        ##             ai = self.Aparams[self.component][self.fixed_atomtypes[atom1]]
+        ##             A_atoms1.append(ai)
+        ##             self.skip_atom1.append(True)
 
-            for i in xrange(self.natoms2):
-                atom2 = self.atoms2[i]
-                if self.ignorecase:
-                    atom2 = atom2.upper()
-                try:
-                    A_atoms2.append(params[param_map[atom2]])
-                    self.skip_atom2.append(False)
-                except KeyError:
-                    ai = self.Aparams[self.component][self.fixed_atomtypes[atom2]]
-                    A_atoms2.append(ai)
-                    self.skip_atom2.append(True)
+        ##     for i in xrange(self.natoms2):
+        ##         atom2 = self.atoms2[i]
+        ##         if self.ignorecase:
+        ##             atom2 = atom2.upper()
+        ##         try:
+        ##             A_atoms2.append(params[param_map[atom2]])
+        ##             self.skip_atom2.append(False)
+        ##         except KeyError:
+        ##             ai = self.Aparams[self.component][self.fixed_atomtypes[atom2]]
+        ##             A_atoms2.append(ai)
+        ##             self.skip_atom2.append(True)
 
-            # Now that we know which set of parameters to use for each atomtype,
-            # we can finally compute the component energy of the system for each
-            # data point:
-            # Declare some symbols
-            r = sym.symbols('r_0:%d_0:%d'%(self.natoms1,self.natoms2))
-            theta1 = sym.symbols('theta1_0:%d_0:%d'%(self.natoms1,self.natoms2))
-            phi1 = sym.symbols('phi1_0:%d_0:%d'%(self.natoms1,self.natoms2))
-            theta2 = sym.symbols('theta2_0:%d_0:%d'%(self.natoms2,self.natoms1))
-            phi2 = sym.symbols('phi2_0:%d_0:%d'%(self.natoms2,self.natoms1))
+        ##     # Now that we know which set of parameters to use for each atomtype,
+        ##     # we can finally compute the component energy of the system for each
+        ##     # data point:
+        ##     # Declare some symbols
+        ##     r = sym.symbols('r_0:%d_0:%d'%(self.natoms1,self.natoms2))
+        ##     theta1 = sym.symbols('theta1_0:%d_0:%d'%(self.natoms1,self.natoms2))
+        ##     phi1 = sym.symbols('phi1_0:%d_0:%d'%(self.natoms1,self.natoms2))
+        ##     theta2 = sym.symbols('theta2_0:%d_0:%d'%(self.natoms2,self.natoms1))
+        ##     phi2 = sym.symbols('phi2_0:%d_0:%d'%(self.natoms2,self.natoms1))
 
-            print 'Symbolically evaluating FF energy.'
-            ff_energy = 0.0
-            for i in xrange(self.natoms1):
-                Ai = A_atoms1[i]
-                atom1 = self.atoms1[i]
-                for j in xrange(self.natoms2):
-                    Aj = A_atoms2[j]
-                    atom2 = self.atoms2[j]
+        ##     print 'Symbolically evaluating FF energy.'
+        ##     ff_energy = 0.0
+        ##     for i in xrange(self.natoms1):
+        ##         Ai = A_atoms1[i]
+        ##         atom1 = self.atoms1[i]
+        ##         for j in xrange(self.natoms2):
+        ##             Aj = A_atoms2[j]
+        ##             atom2 = self.atoms2[j]
 
-                    # Check if Ai and Aj originate from constrained
-                    # parameters. If so, don't evaluate their energy, as this
-                    # energy was already subtracted off earlier in the
-                    # program. Otherwise, add their energy to the total
-                    # ff energy, and compute 
-                    if self.skip_atom1[i] and self.skip_atom2[j]:
-                        continue
+        ##             # Check if Ai and Aj originate from constrained
+        ##             # parameters. If so, don't evaluate their energy, as this
+        ##             # energy was already subtracted off earlier in the
+        ##             # program. Otherwise, add their energy to the total
+        ##             # ff energy, and compute 
+        ##             if self.skip_atom1[i] and self.skip_atom2[j]:
+        ##                 continue
 
-                    ij = i*self.natoms2 + j
-                    ji = j*self.natoms1 + i
-                    if self.component != 4:
-                        eij = self.calc_sym_eij(i,j,r[ij], Ai, Aj, \
-                                            theta1[ij], theta2[ji], phi1[ij], phi2[ji])
-                    else:
-                        eij = self.calc_sym_disp_ij(i,j,r[ij], Ai, Aj, \
-                                            theta1[ij], theta2[ji], phi1[ij], phi2[ji])
-                    ff_energy += eij
+        ##             ij = i*self.natoms2 + j
+        ##             ji = j*self.natoms1 + i
+        ##             if self.component != 4:
+        ##                 eij = self.calc_sym_eij(i,j,r[ij], Ai, Aj, \
+        ##                                     theta1[ij], theta2[ji], phi1[ij], phi2[ji])
+        ##             else:
+        ##                 eij = self.calc_sym_disp_ij(i,j,r[ij], Ai, Aj, \
+        ##                                     theta1[ij], theta2[ji], phi1[ij], phi2[ji])
+        ##             ff_energy += eij
 
-            # Use sympy to compute the deriviative of ff_energy
-            print 'Symbolically evaluating the derivative of the FF energy.'
-            dff_energy = [sym.diff(ff_energy,p) for p in param_symbols]
+        ##     # Use sympy to compute the deriviative of ff_energy
+        ##     print 'Symbolically evaluating the derivative of the FF energy.'
+        ##     dff_energy = [sym.diff(ff_energy,p) for p in param_symbols]
 
-            # Lambdify the ff_energy and dff_energy functions
-            args = param_symbols, r, theta1, theta2, phi1, phi2
-            print 'Calculating numeric energies and derivatives.'
-            self.evaluate_ff_energy, self.subexp = self.generate_num_f(flatten(args), ff_energy, dff_energy)
-            print 'Finished calculating numeric energies and derivatives.'
+        ##     # Lambdify the ff_energy and dff_energy functions
+        ##     args = param_symbols, r, theta1, theta2, phi1, phi2
+        ##     print 'Calculating numeric energies and derivatives.'
+        ##     self.evaluate_ff_energy, self.subexp = self.generate_num_f(flatten(args), ff_energy, dff_energy)
+        ##     print 'Finished calculating numeric energies and derivatives.'
 
-            # Turn multi-dimensional params list back into a 1D list
-            params = num_params
+        ##     # Turn multi-dimensional params list back into a 1D list
+        ##     params = num_params
 
 
         # By the time this part of the code is called, numeric subroutines
@@ -2208,31 +2395,110 @@ class FitFFParameters:
         # already been generated. Since these functions take 1D arrays as
         # input, we need to flatten some of our multi-dimensional arrays, such
         # as r, before they can be used as inputs.
-        r = self.r12
-        theta1 = self.angles1[:,:,0,:]
-        phi1 = self.angles1[:,:,1,:]
-        theta2 = self.angles2[:,:,0,:]
-        phi2 = self.angles2[:,:,1,:]
+        ## r = self.r12
+        ## theta1 = self.angles1[:,:,0,:]
+        ## phi1 = self.angles1[:,:,1,:]
+        ## theta2 = self.angles2[:,:,0,:]
+        ## phi2 = self.angles2[:,:,1,:]
 
-        r = [ [j for j in i ] for i in r]
-        r_flat = list(itertools.chain.from_iterable(r))
-        theta1 = [ [j for j in i ] for i in theta1]
-        theta1_flat = list(itertools.chain.from_iterable(theta1))
-        theta2 = [ [j for j in i ] for i in theta2]
-        theta2_flat = list(itertools.chain.from_iterable(theta2))
-        phi1 = [ [j for j in i ] for i in phi1]
-        phi1_flat = list(itertools.chain.from_iterable(phi1))
-        phi2 = [ [j for j in i ] for i in phi2]
-        phi2_flat = list(itertools.chain.from_iterable(phi2))
-        vals = list(params) + r_flat + theta1_flat + theta2_flat + phi1_flat + phi2_flat
+        ## r = [ [j for j in i ] for i in r]
+        ## r_flat = list(itertools.chain.from_iterable(r))
+        ## theta1 = [ [j for j in i ] for i in theta1]
+        ## theta1_flat = list(itertools.chain.from_iterable(theta1))
+        ## theta2 = [ [j for j in i ] for i in theta2]
+        ## theta2_flat = list(itertools.chain.from_iterable(theta2))
+        ## phi1 = [ [j for j in i ] for i in phi1]
+        ## phi1_flat = list(itertools.chain.from_iterable(phi1))
+        ## phi2 = [ [j for j in i ] for i in phi2]
+        ## phi2_flat = list(itertools.chain.from_iterable(phi2))
+        ## vals = list(params) + r_flat + theta1_flat + theta2_flat + phi1_flat + phi2_flat
+
+        params = self.map_params(params)
+        param_map = {}
+        paramindex = 0
+        for atomtype in self.fit_isotropic_atomtypes + self.fit_anisotropic_atomtypes:
+            if self.ignorecase:
+                param_map[atomtype.upper()] = paramindex
+                paramindex += 1
+            else:
+                param_map[atomtype] = paramindex
+                paramindex += 1
+
+        all_Ai = []
+        for atom in self.atoms1:
+            if atom in self.fixed_atomtypes:
+                all_Ai.append(
+                        self.Aparams[self.component][self.fixed_atomtypes[atom]])
+            else:
+                all_Ai.append( params[param_map[atom]] )
+
+        all_Aj = []
+        for atom in self.atoms2:
+            if atom in self.fixed_atomtypes:
+                all_Aj.append(
+                        self.Aparams[self.component][self.fixed_atomtypes[atom]])
+            else:
+                all_Aj.append( params[param_map[atom]] )
+
+
+        ff_energy = np.zeros_like(self.qm_energy[self.component])
+        dff_energy = np.array([ np.zeros_like(ff_energy) for p in flatten(params)])
+        for i, atom1 in enumerate(self.atoms1):
+            for j, atom2 in enumerate(self.atoms2):
+                if not (atom1 in self.fit_atomtypes or atom2 in self.fit_atomtypes):
+                    # Constrained energies already subtracted
+                    continue
+                pair = tuple(sorted([atom1,atom2]))
+                Ai = all_Ai[i]
+                Aj = all_Aj[j]
+                rij = self.r12[i][j]
+                theta1ij = self.angles1[i,j,0]
+                phi1ij = self.angles1[i,j,1]
+                theta2ji = self.angles2[j,i,0]
+                phi2ji = self.angles2[j,i,1]
+                args = Ai + Aj + [rij] + [theta1ij] + [theta2ji] +  [phi1ij] + [phi2ji]
+                if not self.use_cse:
+                    energy = self.get_num_eij[pair](args)
+                else:
+                    num_eij, subexp = self.get_num_eij[pair]
+                    energy = self.evaluate_num_f(args,subexp,num_eij)
+
+                # Fix return values of int(0) to be appropriately shaped np
+                # arrays
+                zeros = np.zeros_like(ff_energy)
+                for i1,line in enumerate(energy):
+                    if type(line) == int:
+                        energy[i1] = zeros
+
+                dff = np.array(energy[1:])
+
+                ff_energy += energy[0]
+                #dff_energy += np.array(energy[1:])
+                dff_energy += np.array(energy[1:]) 
+
+                ## print ff_energy
+                ## print dff_energy
+
+                ## sys.exit()
+
+        print 'ff_energy:'
+        print ff_energy[0]
+        print 'ff_derivs:'
+        print dff_energy[:,0]
+
+        sys.exit()
+
+
+
+
 
         # Actual call to evaluate force field energy and gradient occurs here.
-        try:
-            num_f = self.evaluate_num_f(vals, self.subexp, self.evaluate_ff_energy)
-            ff_energy, dff_energy = num_f[0], num_f[1:]
-        except (FloatingPointError,ZeroDivisionError):
-            print params
-            raise
+        ## try:
+        ##     num_f = self.evaluate_num_f(vals, self.subexp, self.evaluate_ff_energy)
+        ##     ff_energy, dff_energy = num_f[0], num_f[1:]
+        ## except (FloatingPointError,ZeroDivisionError):
+        ##     print params
+        ##     raise
 
         # TODO ADD this block of code to lambdify'd version to check for
         # erroneous negative energies (which should only arise for anisotropy)
@@ -2328,16 +2594,19 @@ class FitFFParameters:
             and j.
 
         '''
-        atom1 = self.atoms1[i]
-        atom2 = self.atoms2[j]
+        ## atom1 = self.atoms1[i]
+        ## atom2 = self.atoms2[j]
+
+        atom1 = i
+        atom2 = j
 
         # Calculate exponent
         if self.fit_bii:
-            if not self.skip_atom1[i]:
+            if atom1 in self.fit_atomtypes: 
                 bi = Ai[-1]*self.exponents[atom1] # exponent scaling factor is last parameter
             else:
                 bi = self.exponents[atom1]
-            if not self.skip_atom2[j]:
+            if atom2 in self.fit_atomtypes: 
                 bj = Aj[-1]*self.exponents[atom2] # exponent scaling factor is last parameter
             else:
                 bj = self.exponents[atom2]
@@ -2350,20 +2619,20 @@ class FitFFParameters:
         # Calculate the A coefficient for each atom. This
         # coefficient is computed differently if the atom is
         # isotropic or anisotropic. 
-        if self.atoms1_anisotropic[i]:
-            sph_harm = self.anisotropic_symmetries[self.atoms1[i]]
+        if atom1 in self.anisotropic_atomtypes:
+            sph_harm = self.anisotropic_symmetries[atom1]
             a = Ai[0]
-            if (not self.skip_atom1[i]) and self.fit_bii:
+            if (atom1 in self.fit_atomtypes) and self.fit_bii:
                 Aangular = Ai[1:-1]
             else:
                 Aangular = Ai[1:]
             ai = functional_forms.get_anisotropic_ai(sph_harm, a,Aangular,rij,theta1,phi1)
         else: #if isotropic
             ai = Ai[0]
-        if self.atoms2_anisotropic[j]:
-            sph_harm = self.anisotropic_symmetries[self.atoms2[j]]
+        if atom2 in self.anisotropic_atomtypes:
+            sph_harm = self.anisotropic_symmetries[atom2]
             a = Aj[0]
-            if (not self.skip_atom2[j]) and self.fit_bii:
+            if (atom2 in self.fit_atomtypes) and self.fit_bii:
                 Aangular = Aj[1:-1]
             else:
                 Aangular = Aj[1:]
@@ -2612,6 +2881,11 @@ class FitFFParameters:
             Numerical output of fexp(fargs)
 
         '''
+
+        ## print fargs
+        ## print subexp
+        ## print fexp
+
         fout = [ [] for i in fexp ]
         for expr in subexp:
             fargs.append(expr(*fargs))
@@ -2854,11 +3128,6 @@ class FitFFParameters:
                 if not success:
                     f.write('Warning! Optimizer did not terminate successfully, but rather quit with the following error message:\n')
                     f.write(message + '\n')
-                ## template='{:5s}   '+'{:^16s}'*4 +'\n'
-                ## f.write(template.format('Mon2','C6','C8','C10','C12'))
-                ## for atom,cn_coeffs in zip(self.atoms2,self.Cparams2):
-                ##     template='{:5s}'+'{:16.6f}'*len(cn_coeffs)+'\n'
-                ##     f.write(template.format(atom,*cn_coeffs))
             else:
                 # Nothing to print right now for total energy
                 pass
