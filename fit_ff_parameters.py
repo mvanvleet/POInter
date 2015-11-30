@@ -2413,6 +2413,7 @@ class FitFFParameters:
         ## phi2_flat = list(itertools.chain.from_iterable(phi2))
         ## vals = list(params) + r_flat + theta1_flat + theta2_flat + phi1_flat + phi2_flat
 
+        save_params = params
         params = self.map_params(params)
         param_map = {}
         paramindex = 0
@@ -2489,6 +2490,7 @@ class FitFFParameters:
         sys.exit()
 
 
+        params = save_params
 
 
 
@@ -2516,6 +2518,7 @@ class FitFFParameters:
                 print 'Final parameter values:'
                 for i,atom in enumerate(self.fit_isotropic_atomtypes+self.fit_anisotropic_atomtypes):
                     print atom, self.map_params(params)[i]
+                    #print atom, params[i]
             self.output_params(params)
             self.final_energy_call = False
         
@@ -2918,6 +2921,8 @@ class FitFFParameters:
         '''
         params = self.map_params(params)
         self.atom_params = {}
+
+        #print params
 
         # Collect parameters from the fitted atomtypes
         for i,atom in enumerate(self.fit_isotropic_atomtypes+self.fit_anisotropic_atomtypes):
