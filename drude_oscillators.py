@@ -336,7 +336,7 @@ class Drudes:
 
 
 ####################################################################################################    
-    def find_drude_positions(self,itermax=100,thresh=1e-8):
+    def find_drude_positions(self,itermax=500,thresh=1e-8):
         '''Use a conjugate gradient method to find lowest-energy positions for drude oscillators.
 
         Parameters
@@ -360,9 +360,18 @@ class Drudes:
         old_forces1=old_forces2 = 0.0 #values here are placeholders only
         old_search_vec1=old_search_vec2 = 0.0
 
+        print 'Converging drude oscillator positions.'
+
         while not converged:
             if iterno > itermax:
-                sys.exit('Too many iterations to find drude oscillator positions!')
+                error = '''Too many iterations to find drude oscillator positions!
+                
+                Maximum force on drude oscillators is {} on monomer 1 and {}
+                on monomer 2. 
+
+                Exiting.
+                '''
+                sys.exit(error.format(np.max(np.abs(forces1)), np.max(np.abs(forces2))))
 
             self.update_multipole_moments()
 

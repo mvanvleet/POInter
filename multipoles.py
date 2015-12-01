@@ -885,10 +885,10 @@ class Multipoles:
             try:
                 import cloudpickle
                 with open(self.fpik,'rb') as f:
-                    print self.fpik
                     self.delT = cloudpickle.load(f)
-                print 'Read in multipole derivatives from the following file:'
-                print self.fpik
+                if self.verbose:
+                    print 'Read in multipole derivatives from the following file:'
+                    print self.fpik
             except (ImportError, IOError):
                 self.initialize_del_interaction_tensor()
 
