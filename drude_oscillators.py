@@ -111,6 +111,8 @@ class Drudes:
         self.natoms2 = len(self.qshell2)
 
         self.inter_damping_type = inter_damping_type
+        if self.inter_damping_type == 'Tang-Toennies':
+            raise NotImplementedError, "Haven't figured out TT damp for multiple exponents"
 
 
         ###########################################################################
@@ -615,7 +617,9 @@ class Drudes:
             x1 = shell_xyz_i[:,ishell]
             x2 = xyz_j[:,j]
             xvec = x1 - x2
-            bij = exponents[ishell,j]
+            # TODO: Fix TT damping here
+            #bij = exponents[ishell,j]
+            bij = exponents
             efield += self.get_efield_from_multipole_charge(ishell,j,Multipoles_j,bij,xvec)
 
             # Shell-core interactions
@@ -623,7 +627,8 @@ class Drudes:
             x1 = shell_xyz_i[:,ishell]
             x2 = xyz_j[:,j]
             xvec = x1 - x2
-            bij = exponents[ishell,j]
+            bij = exponents
+            #bij = exponents[ishell,j]
             efield += self.get_efield_from_point_charge(q2,bij,xvec)
 
             # Shell-shell interactions

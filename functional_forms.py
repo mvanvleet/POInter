@@ -10,7 +10,7 @@ from scipy.misc import factorial
 import sys
 
 ####################################################################################################    
-def get_eij(component,aij,rij,bij,functional_form='born-mayer',slater_correction=True):
+def get_eij(component,rij,bij,functional_form='born-mayer',slater_correction=True):
     '''Calls the relevant calc_energy routine that will compute the
     interaction energy between atoms with parameters Ai, Aj, bij, and pairwise
     distance rij. Component is an indexing number that maps as follows:
@@ -28,21 +28,25 @@ def get_eij(component,aij,rij,bij,functional_form='born-mayer',slater_correction
     '''
 
     if component == 0:
-        return get_exchange_energy(aij,rij,bij,functional_form)
+        return get_exchange_energy(rij,bij,functional_form)
     elif component == 1:
         # Technically the electrostatic component also contains a multipolar
         # component to the energy, but this has already been subtracted off as
         # a hard constraint.
-        return get_charge_penetration_energy(aij,rij,bij,functional_form)
+        return get_charge_penetration_energy(rij,bij,functional_form)
     elif component == 2:
-        return get_charge_penetration_energy(aij,rij,bij,functional_form)
+        return get_charge_penetration_energy(rij,bij,functional_form)
     elif component == 3:
-        return get_charge_penetration_energy(aij,rij,bij,functional_form)
+        return get_charge_penetration_energy(rij,bij,functional_form)
+        #return get_exchange_energy(rij,bij,functional_form)
     elif component == 4:
+        # For dispersion, we just need the exchange energy to get the
+        # appropriate dispersion damping energy
+        #return get_exchange_energy(rij,bij,functional_form)
         print 'get_eij routine should not be called to evaluate dispersion.  Call get_dispersion_energy directly.'
         sys.exit()
     elif component == 5:
-        return get_charge_penetration_energy(aij,rij,bij,functional_form)
+        return get_charge_penetration_energy(rij,bij,functional_form)
     else:
         print 'Unknown energy component!'
         sys.exit()
@@ -51,23 +55,23 @@ def get_eij(component,aij,rij,bij,functional_form='born-mayer',slater_correction
 
 
 ####################################################################################################    
-def get_exchange_energy(aij,rij,bij,functional_form='stone',k=0.001):
+def get_exchange_energy(rij,bij,functional_form='stone',k=0.001):
     '''For a given pair of atoms i and j, with associated distance rij and
     exponent bij, computes the exchange energy of the pair according to an
     exponential functional form.
     '''
 
     if functional_form == 'stone':
-        return k*exp(-bij*(rij-aij))
+        return k*exp(-bij*rij)
     elif functional_form == 'born-mayer':
-        return aij*exp(-bij*rij)
+        return exp(-bij*rij)
     else:
         raise NotImplementedError('Unknown functional form')
 ####################################################################################################    
 
 
 ####################################################################################################    
-def get_charge_penetration_energy(aij,rij,bij,functional_form='stone',k=0.001):
+def get_charge_penetration_energy(rij,bij,functional_form='stone',k=0.001):
     '''For a given pair of atoms i and j, with associated distance rij and
     exponent bij, computes the charge penetration portion of the
     electrostatic/induction energy of the pair according to an exponential
@@ -76,65 +80,30 @@ def get_charge_penetration_energy(aij,rij,bij,functional_form='stone',k=0.001):
     '''
 
     if functional_form == 'stone':
-        return -k*exp(-bij*(rij-aij))
+        return -k*exp(-bij*rij)
     elif functional_form == 'born-mayer':
-        return -aij*exp(-bij*rij)
+        return -exp(-bij*rij)
     else:
         raise NotImplementedError('Unknown functional form')
 ####################################################################################################    
 
 
-## ####################################################################################################    
-## def get_multipole_energy(qi,qj,rij,bij,slater_correction=False):
-##     '''For a given pair of atoms i and j, with associated distance rij and
-##     exponent bij, computes the multipole portion of the electrostatic
-##     energy of the pair according to a Coulombic functional form.
-## 
-##     Worth mentioning is our use of the standard Tang-Toennies damping factor,
-##     see 
-##     (1) McDaniel, J. G.; Schmidt, J. R. J. Phys. Chem. A 2013, 117, 2053-066.
-##     (2) Tang, K. T.; Toennies, J. P. J. Chem. Phys. 1984, 80, 3726-3741.
-##     (3) Tang, K. T.; Peter Toennies, J. Surf. Sci. 1992, 279, L203-206.
-## 
-##     This damping factor depends (see ref. 3) on the form of the repulsive part
-##     of the potential, with y = -d/dr(ln V_repulsive).
-## 
-##     '''
-##     damping_factor = get_damping_factor(rij,bij,1,slater_correction)
-##     return damping_factor*(qi*qj/rij)
-## ####################################################################################################    
-
-
 ####################################################################################################    
-def get_dispersion_energy(n,cij,rij,bij,slater_correction):
+def get_dispersion_energy(n,cij,rij,bij,x,slater_correction):
     '''For a given pair of atoms i and j, with associated distance rij and
     exponent bij, computes the dispersion energy of the pair according to a
     cij/r^n functional form. Here n is the order of dispersion and cij is the
     dispersion coefficient corresponding to the 1/r^n power dispersion.
     '''
 
-    dispersion_energy = - get_damping_factor(rij,bij,n,slater_correction)*cij/(rij**n)
+    dispersion_energy = - get_damping_factor(x,rij,bij,n,slater_correction)*cij/(rij**n)
 
     return dispersion_energy
 ####################################################################################################    
 
 
-## ####################################################################################################    
-## def get_isotropic_dispersion_energy(Cij,rij,bij,slater_correction):
-##     '''Ci is array containing C6 through C12 coefficients.
-##     '''
-## 
-##     dispersion_energy = 0.0
-##     for i in range(6,14,2): # Compute C6, C8, C10, C12 dispersion energies
-##         dispersion_energy -= get_damping_factor(rij,bij,i,slater_correction)*Cij[i/2-3]/(rij**i)
-##         #dispersion_energy -= get_damping_factor(y*rij,i)*Cij[i/2-3]/(rij**i)
-## 
-##     return dispersion_energy
-## ####################################################################################################    
-
-
 ####################################################################################################    
-def get_damping_factor(rij,bij,n,slater_correction):
+def get_damping_factor(x,rij,bij,n,slater_correction):
     '''Computes the standard Tang-Toennies damping factor, see
     (1) McDaniel, J. G.; Schmidt, J. R. J. Phys. Chem. A 2013, 117, 2053-066.
     (2) Tang, K. T.; Toennies, J. P. J. Chem. Phys. 1984, 80, 3726-3741.
@@ -146,11 +115,13 @@ def get_damping_factor(rij,bij,n,slater_correction):
            n, the order of the damping correction
     '''
 
-    if slater_correction:
-        y = bij - (2*bij**2*rij + 3*bij)/(bij**2*rij**2 + 3*bij*rij + 3)
-    else:
-        y = bij
-    x = y*rij
+    if x == None:
+        # Determine x analytically; assumes Vexch is a single exponential form
+        if slater_correction:
+            y = bij - (2*bij**2*rij + 3*bij)/(bij**2*rij**2 + 3*bij*rij + 3)
+        else:
+            y = bij
+        x = y*rij
 
     sum = 1.0 # Account for n = 0 term
     for i in range(1,n+1):
@@ -163,6 +134,25 @@ def get_damping_factor(rij,bij,n,slater_correction):
         return 1.0 - np.exp(-x)*sum
     else:
         return 1.0 - exp(-x)*sum
+####################################################################################################    
+
+
+####################################################################################################    
+def get_ai(k,b,d):
+    '''For a given pair of atoms i and j, with associated distance rij and
+    exponent bij, computes the dispersion energy of the pair according to a
+    cij/r^n functional form. Here n is the order of dispersion and cij is the
+    dispersion coefficient corresponding to the 1/r^n power dispersion.
+    '''
+
+    if type(k).__module__ == np.__name__:
+        return k*np.sqrt(np.pi/b**3)*d
+    else:
+        return k*sqrt(pi/b**3)*d
+
+    dispersion_energy = - get_damping_factor(rij,bij,n,slater_correction)*cij/(rij**n)
+
+    return dispersion_energy
 ####################################################################################################    
 
 
@@ -225,18 +215,21 @@ def y21c(theta, phi): return np.sqrt(3)*sin(2*phi)*cos(theta)       #d_xz
 def y22s(theta, phi): return np.sqrt(0.75)*sin(phi)**2*sin(2*theta) #d_xy
 def y22c(theta, phi): return np.sqrt(0.75)*sin(phi)**2*cos(2*theta) #d_x2-y2
 
+def y30(theta, phi): return cos(phi)*(2*cos(phi)**2 -3*sin(phi)**2)
+
     ## y30 = cos(phi)*(2*cos(phi)**2 -3*sin(phi)**2)
     ## y32 = sin(phi)*sin(2*phi)*cos(2*theta)
 
-sym_real_sph_harm = { 'y00' : y00 ,\
-                  'y10' : y10 ,\
-                  'y11s': y11s,\
-                  'y11c': y11c,\
-                  'y20' : y20 ,\
-                  'y21s': y21s,\
-                  'y21c': y21c,\
-                  'y22s': y22s,\
-                  'y22c': y22c, }
+sym_real_sph_harm = { 'y00' : y00 ,
+                  'y10' : y10 , 
+                  'y11s': y11s, 
+                  'y11c': y11c, 
+                  'y20' : y20 , 
+                  'y21s': y21s, 
+                  'y21c': y21c, 
+                  'y22s': y22s, 
+                  'y22c': y22c, 
+                  'y30' : y30 , }
 
 # Numpy routines of spherical harmonics
 theta, phi = sym.symbols('theta phi')

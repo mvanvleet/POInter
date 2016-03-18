@@ -88,6 +88,8 @@ class Multipoles:
         # Damping Type. Acceptable options are currently 'None' and
         # 'Tang-Toennies'
         self.damping_type = damping_type
+        if self.damping_type == 'Tang-Toennies':
+            raise NotImplementedError, "Haven't figured out TT damp for multiple exponents"
         #self.damping_type = 'Tang-Toennies'
 
         self.natoms1 = len(self.xyz1[0])
