@@ -10,7 +10,7 @@ from scipy.misc import factorial
 import sys
 
 ####################################################################################################    
-def get_eij(component,rij,bij,functional_form='born-mayer',slater_correction=True):
+def get_eij(component,rij,bij,aij='1.0',functional_form='born-mayer',slater_correction=True):
     '''Calls the relevant calc_energy routine that will compute the
     interaction energy between atoms with parameters Ai, Aj, bij, and pairwise
     distance rij. Component is an indexing number that maps as follows:
@@ -46,6 +46,9 @@ def get_eij(component,rij,bij,functional_form='born-mayer',slater_correction=Tru
         print 'get_eij routine should not be called to evaluate dispersion.  Call get_dispersion_energy directly.'
         sys.exit()
     elif component == 5:
+        if functional_form == 'lennard-jones':
+            print 'bij, aij', bij, aij
+            return get_lj_energy(rij,bij,aij)
         return get_charge_penetration_energy(rij,bij,functional_form)
     else:
         print 'Unknown energy component!'
@@ -85,6 +88,21 @@ def get_charge_penetration_energy(rij,bij,functional_form='stone',k=0.001):
         return -exp(-bij*rij)
     else:
         raise NotImplementedError('Unknown functional form')
+####################################################################################################    
+
+
+####################################################################################################    
+def get_lj_energy(rij,eij,sij):
+    '''For a given pair of atoms i and j, with associated distance rij and
+    exponent bij, computes the lennard jones energy of the pair according to an
+    1/r^12 - 1/r^6 functional form.
+    '''
+
+    ## return aij/rij**12 - bij/rij**6
+    #return 4*eij*((sij/rij)**12 - (sij/rij)**6)
+    #mH = 1000
+    mH = 0.001
+    return 4*mH*eij*((sij/rij)**12 - (sij/rij)**6)
 ####################################################################################################    
 
 

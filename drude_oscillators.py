@@ -9,7 +9,7 @@ from sympy.utilities import lambdify
 from multipoles import Multipoles
 
 # Numpy error message settings
-#np.seterr(all='raise')
+np.seterr(under='ignore')
 
 ####################################################################################################    
 ####################################################################################################    
@@ -85,10 +85,11 @@ class Drudes:
     
     def __init__(self, xyz1, xyz2, 
                    multipole_file1, multipole_file2, 
+                   axes1,axes2,
                    qshell1, qshell2, 
+                   springcon1,springcon2,
                    exponents,
                    screenlength=2.0, 
-                   springcon=0.1, 
                    slater_correction=True,
                    inter_damping_type='None'):
 
@@ -100,20 +101,30 @@ class Drudes:
         self.xyz2 = xyz2
         self.multipole_file1 = multipole_file1
         self.multipole_file2 = multipole_file2
+        self.axes1 = axes1
+        self.axes2 = axes2
         self.qshell1 = qshell1
         self.qshell2 = qshell2
+        self.springcon1 = springcon1
+        self.springcon2 = springcon2
         self.exponents = exponents
         self.screenlength = screenlength
-        self.springcon = springcon
         self.slater_correction = slater_correction
 
         self.natoms1 = len(self.qshell1)
         self.natoms2 = len(self.qshell2)
 
+        # Transform spring constants to the global coordinate system
+        self.springcon1 = self.axes1*self.springcon1[np.newaxis,:,np.newaxis,:]
+        #self.springcon1 = self.axes1*self.springcon1[np.newaxis,:,:,np.newaxis]
+        self.springcon1 = np.sqrt(np.sum(self.springcon1**2,-1))
+        self.springcon2 = self.axes2*self.springcon2[np.newaxis,:,np.newaxis,:]
+        #self.springcon2 = self.axes2*self.springcon2[np.newaxis,:,:,np.newaxis]
+        self.springcon2 = np.sqrt(np.sum(self.springcon2**2,-1))
+
         self.inter_damping_type = inter_damping_type
         if self.inter_damping_type == 'Tang-Toennies':
-            raise NotImplementedError, "Haven't figured out TT damp for multiple exponents"
-
+            raise NotImplementedError, "Haven't figured out TT damp for multiple exponents or multipoles"
 
         ###########################################################################
         ###########################################################################
@@ -139,6 +150,11 @@ class Drudes:
         path = os.path.abspath(__file__)
         dir_path = os.path.dirname(path) + '/'
         self.fpik = dir_path + self.fpik
+
+        # Use average isotropic Thole damping factors for now based on average
+        # spring constant; this is what OpenMM does, but one could imagine
+        # wanting to change this in the future.
+        self.avg_springcon = 0.1
 
         ###########################################################################
         ###########################################################################
@@ -391,13 +407,13 @@ class Drudes:
             x1 = self.shell_xyz1
             x2 = self.xyz1
             dx = x1 - x2
-            forces1 = forces1 - self.springcon*dx
+            forces1 = forces1 - self.springcon1*dx
             #converged1 = np.all(forces1 < thresh)
             converged1 = np.all(np.abs(forces1) < thresh)
 
             if not converged1:
                 lambda1, search_vec1 = \
-                        self.compute_next_step(iterno,forces1,old_forces1,old_search_vec1)
+                        self.compute_next_step(iterno,self.springcon1,forces1,old_forces1,old_search_vec1)
                 # Update drude positions a distance lambda in the direction of the
                 # search vector
                 self.shell_xyz1 += lambda1*search_vec1
@@ -417,13 +433,13 @@ class Drudes:
             x1 = self.shell_xyz2
             x2 = self.xyz2
             dx = x1 - x2
-            forces2 = forces2 - self.springcon*dx
+            forces2 = forces2 - self.springcon2*dx
             #converged2 = np.all(forces2 < thresh)
             converged2 = np.all(np.abs(forces2) < thresh)
 
             if not converged2:
                 lambda2, search_vec2 = \
-                        self.compute_next_step(iterno,forces2,old_forces2,old_search_vec2)
+                        self.compute_next_step(iterno,self.springcon2,forces2,old_forces2,old_search_vec2)
 
                 self.shell_xyz2 += lambda2*search_vec2
 
@@ -441,7 +457,7 @@ class Drudes:
 
 
 ####################################################################################################    
-    def compute_next_step(self,iterno,forces,old_forces,old_search_vec,
+    def compute_next_step(self,iterno,springcon,forces,old_forces,old_search_vec,
                             small_lambda=1e-30, small_f=1e-15):
         '''Compute the positions of drude oscillators for the next iteration of a conjugate gradient descent.
 
@@ -476,10 +492,11 @@ class Drudes:
         if iterno == 0:
             search_vec = np.copy(forces)
             assert not np.may_share_memory(search_vec, forces)
-            lambdai = 1/self.springcon
+            lambdai = 1/springcon
+
         # For subsequent steps, using a conjugate gradient method, as
         # described in 
-        # Lindan, P. J. D.; Gillan, M. J. J. Phys Condens. Matter # 1993, 5, 1019
+        # Lindan, P. J. D.; Gillan, M. J. J. Phys Condens. Matter 1993, 5, 1019
         # to determine the next step:
         else:
             sum_f_old = np.sum(old_forces*old_forces,axis=(-1,-2))
@@ -489,14 +506,14 @@ class Drudes:
             search_vec = forces + beta[:,np.newaxis,np.newaxis]*old_search_vec
 
             lambdai = np.sum(forces*search_vec,axis=(-1,-2))
-            lambda_denom = self.springcon*np.sum(search_vec*search_vec,axis=(-1,-2))
+            lambda_denom = np.sum(springcon*search_vec*search_vec,axis=(-1,-2))
             # Here we have to be careful to avoid zero division errors, if
             # lambda is too close to zero
             lambdai /= np.where(abs(lambdai) > small_lambda,
                             lambda_denom, np.inf ) 
+
             # Broadcast lambda into the correct shape
             lambdai = lambdai[:,np.newaxis,np.newaxis]
-
 
         return lambdai, search_vec
 ####################################################################################################    
@@ -613,7 +630,6 @@ class Drudes:
         # drude oscillators:
         for j in xrange(natoms_j):
             # Shell-permanent multipole interactions
-            #q2 = qcore_j[j]
             x1 = shell_xyz_i[:,ishell]
             x2 = xyz_j[:,j]
             xvec = x1 - x2
@@ -858,11 +874,12 @@ class Drudes:
 
         # Include spring energy:
         # Spring Energy Monomer1
-        dr2 = np.sum((self.xyz1 - self.shell_xyz1)**2, axis=-1)
-        edrude += 0.5*np.sum(self.springcon*dr2, axis=-1)
+        kdr2 = np.sum(self.springcon1*(self.xyz1 - self.shell_xyz1)**2, axis=-1)
+        edrude += 0.5*np.sum(kdr2, axis=-1)
+        #edrude += 0.5*np.sum(self.springcon1*dr2, axis=-1)
         # Spring Energy Monomer 2
-        dr2 = np.sum((self.xyz2 - self.shell_xyz2)**2, axis=-1)
-        edrude += 0.5*np.sum(self.springcon*dr2, axis=-1)
+        kdr2 = np.sum(self.springcon2*(self.xyz2 - self.shell_xyz2)**2, axis=-1)
+        edrude += 0.5*np.sum(kdr2, axis=-1)
 
         return edrude
 ####################################################################################################    
@@ -1069,8 +1086,8 @@ class Drudes:
         '''
         rij = sp.sqrt(xij**2 + yij**2 + zij**2)
 
-        ai = qi**2/self.springcon
-        aj = qj**2/self.springcon
+        ai = qi**2/self.avg_springcon
+        aj = qj**2/self.avg_springcon
         p = self.screenlength
 
         prefactor = 1.0 + p*rij/(2*(ai*aj)**(1.0/6))
