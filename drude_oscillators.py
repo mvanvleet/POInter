@@ -91,7 +91,9 @@ class Drudes:
                    exponents,
                    screenlength=2.0, 
                    slater_correction=True,
-                   inter_damping_type='None'):
+                   inter_damping_type='None',
+                   damp_charges_only=True
+                   ):
 
         '''Initilialize input variables and drude positions.'''
 
@@ -116,15 +118,24 @@ class Drudes:
 
         # Transform spring constants to the global coordinate system
         self.springcon1 = self.axes1*self.springcon1[np.newaxis,:,np.newaxis,:]
-        #self.springcon1 = self.axes1*self.springcon1[np.newaxis,:,:,np.newaxis]
         self.springcon1 = np.sqrt(np.sum(self.springcon1**2,-1))
         self.springcon2 = self.axes2*self.springcon2[np.newaxis,:,np.newaxis,:]
-        #self.springcon2 = self.axes2*self.springcon2[np.newaxis,:,:,np.newaxis]
         self.springcon2 = np.sqrt(np.sum(self.springcon2**2,-1))
 
         self.inter_damping_type = inter_damping_type
+        self.damp_charges_only = damp_charges_only
         if self.inter_damping_type == 'Tang-Toennies':
-            raise NotImplementedError, "Haven't figured out TT damp for multiple exponents or multipoles"
+            if self.exponents.shape[-2:] != (1,1):
+                raise NotImplementedError,\
+                        '''The mathematical form of the Tang-Toennies damping differs if
+                        the repulsive potential is comprised of multiple
+                        exponents (see Tang, K. T.; Toennies, J. P.  Surf.
+                        Sci. 1992, 279, L203-L206 for details), and this
+                        (more complicated) functional form has not yet
+                        been included in this fitting program.'''
+        # For now, only use first (and due to check above, only) exponent
+        # for each atomtype
+        self.exponents = np.squeeze(self.exponents,axis=(-2,-1))
 
         ###########################################################################
         ###########################################################################
@@ -634,8 +645,8 @@ class Drudes:
             x2 = xyz_j[:,j]
             xvec = x1 - x2
             # TODO: Fix TT damping here
-            #bij = exponents[ishell,j]
-            bij = exponents
+            bij = exponents[ishell,j]
+            #bij = exponents
             efield += self.get_efield_from_multipole_charge(ishell,j,Multipoles_j,bij,xvec)
 
             # Shell-core interactions
@@ -643,8 +654,8 @@ class Drudes:
             x1 = shell_xyz_i[:,ishell]
             x2 = xyz_j[:,j]
             xvec = x1 - x2
-            bij = exponents
-            #bij = exponents[ishell,j]
+            #bij = exponents
+            bij = exponents[ishell,j]
             efield += self.get_efield_from_point_charge(q2,bij,xvec)
 
             # Shell-shell interactions
@@ -930,15 +941,12 @@ class Drudes:
         zij = xvec[:,2]
         r = np.sqrt(np.sum(xvec**2,axis=1))
 
-        damp = np.where( r > self.small_r, self.damp_inter(bij, xij, yij, zij), 0)
 
-        ddamp = np.array([ np.where( r > self.small_r, 
-                                         - dcharge(bij,xij,yij,zij), 0) 
-                                    for dcharge in self.del_damp_inter ])
-        ddamp = np.swapaxes(ddamp,0,1) # Do we need this?
-
-        qt = np.zeros_like(damp)
-        delqt = np.zeros(damp.shape + (3,))
+        qt = np.zeros_like(r)
+        delqt = np.zeros(r.shape + (3,))
+        ## qt = np.zeros_like(damp)
+        ## delqt = np.zeros(damp.shape + (3,))
+        efield = np.zeros_like(delqt)
         for mj,qj in Multipoles_j.multipoles2[j].items():
             if abs(qj) < smallq:
                 continue
@@ -946,14 +954,28 @@ class Drudes:
             qt += qj*Multipoles_j.get_interaction_tensor(i,j,int_type)
 
             delqt += qj*Multipoles_j.get_del_interaction_tensor(i,j,int_type)
+            
+            if self.damp_charges_only and mj.lstrip('Q') != '00':
+                damp = np.ones_like(qt)
+                ddamp = np.zeros_like(delqt)
+            elif not self.damp_charges_only and self.inter_damping_type == 'Tang-Toennies':
+                raise NotImplementedError,\
+                'TT damping for higher order multipole moments not yet implemented!'
+            else:
+                damp = np.where( r > self.small_r, self.damp_inter(bij, xij, yij, zij), 0)
+
+                ddamp = np.array([ np.where( r > self.small_r, 
+                                                 - dcharge(bij,xij,yij,zij), 0) 
+                                            for dcharge in self.del_damp_inter ])
+                ddamp = np.swapaxes(ddamp,0,1) # Do we need this?
 
 
-        # Get rid of data points where r is too small
-        qt[r < self.small_r] = 0
-        delqt[r < self.small_r,:] = np.zeros(3)
+            # Get rid of data points where r is too small
+            qt[r < self.small_r] = 0
+            delqt[r < self.small_r,:] = np.zeros(3)
 
-        # Compute efield
-        efield = -1*( damp[:,np.newaxis]*delqt + ddamp*qt[:,np.newaxis])
+            # Compute efield
+            efield += -1*( damp[:,np.newaxis]*delqt + ddamp*qt[:,np.newaxis])
 
         return efield
 ####################################################################################################    

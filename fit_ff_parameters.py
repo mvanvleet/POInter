@@ -250,8 +250,17 @@ class FitFFParameters:
         self.exact_radial_correction = False
 
         # Choose damping method for electrostatic interactions. Currently
-        # accepted options are 'None' and 'Tang-Toennies'
+        # accepted options are 'None' and 'Tang-Toennies'. In addition, it is
+        # possible to damp only the point-charge interactions, which ignores
+        # the effect of damping the higher-order multipole moments. If the
+        # electrostatic damping type is set to 'Tang-Toennies',
+        # separate_induction_damping can be set to True, in which case damping
+        # exponents for polarization will be read in separately from the
+        # exponents used for repulsion.
         self.electrostatic_damping_type = 'None'
+        self.induction_damping_type = 'Tang-Toennies'
+        self.damp_charges_only = True
+        self.separate_induction_damping = True
 
         # When fitting parameters, choose whether or not to fit
         # dispersion. If fit_isotropic_dispersion is set to True, isotropic
@@ -268,6 +277,7 @@ class FitFFParameters:
         # set to True, kx, ky, and kz spring constants must all be read in
         # (rather than listing one universal spring constant)
         self.anisotropic_drudes = True
+
 
         # ----------------------------------------------------------------------
         # ----------------------------------------------------------------------
@@ -345,7 +355,7 @@ class FitFFParameters:
         # energy components and output results to output files:
         ff_energy = np.zeros_like(self.qm_energy[6])
 
-        #self.perform_tests()
+        self.perform_tests()
 
         # Fit exchange pre-factors (and potentially exponents, depending on
         # value of self.fit_bii)
@@ -569,6 +579,8 @@ class FitFFParameters:
         self.drude_charges2 = []
         self.springcon1 = []
         self.springcon2 = []
+        self.induction_exponents1 = []
+        self.induction_exponents2 = []
 
         # Initialize list of all hard constraints
         self.fixed_atomtypes = {}
@@ -834,21 +846,29 @@ class FitFFParameters:
                 line = f.readline().split()[1:]
                 self.drude_charges1.append(float(line[0]))
                 if self.anisotropic_drudes:
-                    self.springcon1.append([float(j) for j in line[1:]])
+                    self.springcon1.append([float(j) for j in line[1:4]])
                 else:
                     self.springcon1.append([3*float(line[1])])
+                if self.electrostatic_damping_type == 'Tang-Toennies' \
+                        and self.separate_induction_damping:
+                    self.induction_exponents1.append(float(line[4]))
             self.drude_charges1 = np.array(self.drude_charges1)
             self.springcon1 = np.array(self.springcon1)
+            self.induction_exponents1 = np.array(self.induction_exponents1)
             f.readline()
             for i in xrange(self.natoms2):
                 line = f.readline().split()[1:]
                 self.drude_charges2.append(float(line[0]))
                 if self.anisotropic_drudes:
-                    self.springcon2.append([float(j) for j in line[1:]])
+                    self.springcon2.append([float(j) for j in line[1:4]])
                 else:
                     self.springcon2.append([3*float(line[1])])
+                if self.electrostatic_damping_type == 'Tang-Toennies' \
+                        and self.separate_induction_damping:
+                    self.induction_exponents2.append(float(line[4]))
             self.drude_charges2 = np.array(self.drude_charges2)
             self.springcon2 = np.array(self.springcon2)
+            self.induction_exponents2 = np.array(self.induction_exponents2)
 
             # Read parameters for the weighting function, namely eff_mu and eff_kt
             # charges):
@@ -864,7 +884,6 @@ class FitFFParameters:
             self.params[atom] = []
             for ib, b in enumerate(self.exponents[atom]):
                 atom_dic = {}
-                #print [ j[ib][0] for j in self.Aparams[i] ]
                 atom_dic['A'] = [ j[ib][0] if j else None for j in self.Aparams[i] ]
                 atom_dic['aniso'] = [ j[ib][1:] if j else [] for j in self.Aparams[i] ]
                 atom_dic['B'] = b
@@ -999,33 +1018,33 @@ class FitFFParameters:
 ####################################################################################################    
 
 
-####################################################################################################    
-    def combine_exponents(self):
-        '''Create cross-terms for exponents according to input combination
-        rule.
-
-        Parameters
-        ----------
-        None, though implictly depends on choice of bij_combination_rule
-
-        Returns
-        -------
-        self.exponents : 2darray (natoms1 x natoms2)
-            Array of exponents bij
-        
-        '''
-        bi, bj = sym.symbols(" bi bj")
-        self.combine_num_exponent = lambdify((bi,bj),self.combine_exponent(bi,bj,self.bij_combination_rule),modules='numpy')
-
-        self.exponents = [ [] for i in xrange(self.natoms1)]
-        for i,bi in enumerate(self.exponents1):
-            for bj in self.exponents2:
-                bij = self.combine_num_exponent(bi,bj)
-                self.exponents[i].append(bij)
-
-        self.exponents = np.array(self.exponents)
-        return self.exponents
-####################################################################################################    
+## ####################################################################################################    
+##     def combine_exponents(self):
+##         '''Create cross-terms for exponents according to input combination
+##         rule.
+## 
+##         Parameters
+##         ----------
+##         None, though implictly depends on choice of bij_combination_rule
+## 
+##         Returns
+##         -------
+##         self.exponents : 2darray (natoms1 x natoms2)
+##             Array of exponents bij
+##         
+##         '''
+##         bi, bj = sym.symbols(" bi bj")
+##         self.combine_num_exponent = lambdify((bi,bj),self.combine_exponent(bi,bj,self.bij_combination_rule),modules='numpy')
+## 
+##         self.exponents = [ [] for i in xrange(self.natoms1)]
+##         for i,bi in enumerate(self.exponents1):
+##             for bj in self.exponents2:
+##                 bij = self.combine_num_exponent(bi,bj)
+##                 self.exponents[i].append(bij)
+## 
+##         self.exponents = np.array(self.exponents)
+##         return self.exponents
+## ####################################################################################################    
 
 
 ####################################################################################################    
@@ -1647,6 +1666,17 @@ class FitFFParameters:
             print 'WARNING: Exponents used in TT damping function arise from '+\
             'the exchange fit, and have not been optimized for the drude '+\
             'oscillators in particular.'
+        if self.induction_damping_type == 'Tang-Toennies' \
+                and self.separate_induction_damping:
+            exponents = [ [ self.combine_exponent(bi,bj) 
+                            for bj in self.induction_exponents2 ] 
+                            for bi in self.induction_exponents1 ]
+            exponents = np.array(exponents)[:,:,np.newaxis,np.newaxis]
+            ## print self.all_exponents.shape
+            ## print exponents.shape
+            ## sys.exit()
+        else:
+            exponents = self.all_exponents
         if self.drude_method == 'multipole-gradient':
             print 'Calculating drude oscillator energy using a multipole-gradient method'
             from drude_oscillators import Drudes
@@ -1655,10 +1685,13 @@ class FitFFParameters:
                         self.axes1,self.axes2,
                         self.drude_charges1, self.drude_charges2, 
                         self.springcon1, self.springcon2,
-                        self.all_exponents,
+                        #self.all_exponents,
+                        exponents,
                         self.thole_param, 
                         self.slater_correction,
-                        self.electrostatic_damping_type)
+                        #self.electrostatic_damping_type,
+                        self.induction_damping_type,
+                        self.damp_charges_only)
             self.edrude_ind, self.edrude_dhf = d.get_induction_and_dhf_drude_energy()
         elif self.drude_method == 'finite-differences':
             print 'Calculating drude oscillator energy using finite-differences'
@@ -1695,7 +1728,7 @@ class FitFFParameters:
             raise NotImplementedError
 
         if self.drude_method != 'read':
-            with open('edrudes.dat','w') as f:
+            with open(self.drude_file,'w') as f:
                 f.write('Edrude_ind \t\t Edrude_dhf\n')
                 for i in xrange(len(self.edrude_ind)):
                     f.write('{:16.8f} {:16.8f}\n'.format(self.edrude_ind[i],self.edrude_dhf[i]))
@@ -2015,9 +2048,16 @@ class FitFFParameters:
                 error = 'Damping type needs to be None for consistency with the Orient program.'
                 assert self.electrostatic_damping_type == 'None', error
             else:
-                m = Multipoles(self.xyz1,self.xyz2,self.multipole_file1,self.multipole_file2,
-                            self.all_exponents,self.slater_correction,self.electrostatic_damping_type)
-                qm_fit_energy -= m.get_multipole_electrostatic_energy()
+                m = Multipoles(self.xyz1,self.xyz2,
+                               self.multipole_file1,self.multipole_file2,
+                               self.all_exponents,self.slater_correction,
+                               self.electrostatic_damping_type,self.damp_charges_only)
+                multipole_energy = m.get_multipole_electrostatic_energy()
+                qm_fit_energy -= multipole_energy
+                with open('multipoles.dat','w') as f:
+                    f.write('# Eelst \t\t Emultipole \n')
+                    for q, m in zip(self.qm_energy[self.component],multipole_energy):
+                        f.write('{:16.8f} {:16.8f}\n'.format(q,m))
 
         # For induction and DHF, subtract off drude oscillator energy
         elif self.component == 2:
@@ -2215,8 +2255,6 @@ class FitFFParameters:
 
         '''
 
-        print 'params', params
-
         xdata = xrange(len(self.qm_energy[self.component]))
         ff_fit_energy, dff_fit_energy = self.calc_ff_energy(params)
         ff_energy = np.array(self.qm_energy[self.component])\
@@ -2250,8 +2288,6 @@ class FitFFParameters:
             harmonic_error, dharmonic_error = self.calc_harmonic_constraint_error(params)
             lsq_error += harmonic_error
             dlsq_error += dharmonic_error
-
-        print 'error', lsq_error, dlsq_error
 
         return lsq_error, dlsq_error
 ####################################################################################################    
@@ -2366,9 +2402,6 @@ class FitFFParameters:
                                         theta1ij, theta2ji, phi1ij, phi2ji)
 
                 d_eij = [sym.diff(eij,p) for p in param_symbols]
-
-                # print eij
-                # print d_eij
 
                 args = (param_symbols, rij, theta1ij, theta2ji, phi1ij, phi2ji)
                 if not self.use_cse:
@@ -2987,9 +3020,6 @@ class FitFFParameters:
                 if self.fit_bii:
                     self.params[atom][ib]['B'] = params[i][ib]['B']
 
-        print '---'
-        print self.params
-
         return self.params
 ####################################################################################################    
 
@@ -3059,7 +3089,7 @@ class FitFFParameters:
                 f.write('Monomer 1 Multipole File:\n')
                 f.write(self.multipole_file1 + '\n')
                 f.write('Monomer 2 Multipole File:\n')
-                f.write(self.multipole_file1 + '\n')
+                f.write(self.multipole_file2 + '\n')
                 f.write(long_break)
             
                 # Exchange Parameters
@@ -3273,8 +3303,63 @@ class FitFFParameters:
         '''
 
         #return
+        ## m = Multipoles(self.xyz1,self.xyz2,
+        ##                self.multipole_file1,self.multipole_file2,
+        ##                self.all_exponents,self.slater_correction,
+        ##                self.electrostatic_damping_type,self.damp_charges_only)
+        ## m.get_multipole_electrostatic_energy()
 
-        self.get_drude_oscillator_energy()
+
+        #self.get_drude_oscillator_energy()
+        if self.induction_damping_type == 'Tang-Toennies' \
+                and self.separate_induction_damping:
+            exponents = [ [ self.combine_exponent(bi,bj) 
+                            for bj in self.induction_exponents2 ] 
+                            for bi in self.induction_exponents1 ]
+            exponents = np.array(exponents)[:,:,np.newaxis,np.newaxis]
+            ## print self.all_exponents.shape
+            ## print exponents.shape
+            ## sys.exit()
+        else:
+            exponents = self.all_exponents
+
+        print 'Calculating drude oscillator energy using a multipole-gradient method'
+        from drude_oscillators import Drudes
+        d = Drudes(self.xyz1, self.xyz2, 
+                    self.multipole_file1, self.multipole_file2,
+                    self.axes1,self.axes2,
+                    self.drude_charges1, self.drude_charges2, 
+                    self.springcon1, self.springcon2,
+                    #self.all_exponents,
+                    exponents,
+                    self.thole_param, 
+                    self.slater_correction,
+                    #self.electrostatic_damping_type,
+                    self.induction_damping_type,
+                    self.damp_charges_only)
+
+        # Set each monomer's drude charges to zero and get drude energy in
+        # order to get 2nd order induction energy
+        d.qshell2 = np.zeros_like(d.qshell2)
+        efield = d.get_efield(0,mon=2)
+        template = '{:16.8f}'*3
+        for line in efield:
+            print template.format(*line)
+
+        sys.exit()
+
+        self.find_drude_positions()
+        edrude_ind1 = self.get_drude_energy()
+
+        self.qshell1 = np.zeros_like(self.qshell1)
+        self.qshell2 = qshell2_save
+        self.find_drude_positions()
+        edrude_ind2 = self.get_drude_energy()
+
+        edrude_ind = edrude_ind1 + edrude_ind2
+        edrude_high_order = edrude_total - edrude_ind
+
+        self.edrude_ind, self.edrude_dhf = d.get_induction_and_dhf_drude_energy()
 
         sys.exit()
 

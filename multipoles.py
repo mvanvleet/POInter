@@ -73,7 +73,9 @@ class Multipoles:
                    multipole_file1, multipole_file2, 
                    exponents=np.array([]),
                    slater_correction=True,
-                   damping_type='None'):
+                   damping_type='None',
+                   damp_charges_only=True,
+                   ):
 
         '''Initialize input variables and interaction function tensors.'''
 
@@ -88,8 +90,13 @@ class Multipoles:
         # Damping Type. Acceptable options are currently 'None' and
         # 'Tang-Toennies'
         self.damping_type = damping_type
+        self.damp_charges_only = damp_charges_only
         if self.damping_type == 'Tang-Toennies':
-            raise NotImplementedError, "Haven't figured out TT damp for multiple exponents"
+            if not self.damp_charges_only:
+                print '''WARNING: Haven't yet figured out TT damp for
+                multipoles; currently using a formula that makes intuitive
+                sense by that may not be entirely accurate. Make MVV check
+                this.'''
         #self.damping_type = 'Tang-Toennies'
 
         self.natoms1 = len(self.xyz1[0])
@@ -361,10 +368,6 @@ class Multipoles:
         except AssertionError:
             print np.max(trans_local_xyz-trans_global_xyz)
 
-            print trans_local_xyz[0]
-            print '---'
-            print trans_global_xyz[0]
-            ## sys.exit()
         return rotation_matrix
 ####################################################################################################    
 
@@ -990,15 +993,36 @@ class Multipoles:
 
         rij = self.r[:,i,j]
         if self.damping_type == 'Tang-Toennies':
-            bij = self.exponents[i][j]
-            tt_order = int(interaction_type[0][1]) + int(interaction_type[1][1]) + 1
-            damp = get_damping_factor(rij,bij,tt_order,self.slater_correction)
+            if self.damp_charges_only and not interaction_type == ('Q00','Q00'):
+                damp = 1
+            else:
+                bij = self.exponents[i][j]
+                tt_order = int(interaction_type[0][1]) + int(interaction_type[1][1]) + 1
+                if bij.shape != (1,1):
+                    raise NotImplementedError,\
+                            '''The mathematical form of the Tang-Toennies damping differs if
+                            the repulsive potential is comprised of multiple
+                            exponents (see Tang, K. T.; Toennies, J. P.  Surf.
+                            Sci. 1992, 279, L203-L206 for details), and this
+                            (more complicated) functional form has not yet
+                            been included in this fitting program.'''
+                # Only use the first exponent in calculating the damping
+                # factor; see warning above for dealing with multiple
+                # exponents.
+                bij = bij[0][0]
+                damp = get_damping_factor(None,rij,bij,tt_order,self.slater_correction)
+                print np.amin(damp), np.amax(damp)
         else:
             damp = 1
 
         if self.verbose:
             print 'Interaction Type, Rij, Multipole interaction energy (mH)'
             print interaction_type[0], interaction_type[1], rij[0], (Qa*T*Qb)[0]*1000
+
+
+        ## print damp
+        ## print '----'
+        ## sys.exit()
 
         return damp*Qa*T*Qb
 ####################################################################################################    

@@ -145,6 +145,7 @@ def get_damping_factor(x,rij,bij,n,slater_correction):
     for i in range(1,n+1):
         sum += (x**i)/factorial(i)
 
+
     # We have to evaluate the damping factor slightly differently depending on
     # whether get_damping_factor is being called on numpy arrays or on sympy
     # symbols
