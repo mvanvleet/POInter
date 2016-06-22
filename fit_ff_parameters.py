@@ -355,7 +355,7 @@ class FitFFParameters:
         # energy components and output results to output files:
         ff_energy = np.zeros_like(self.qm_energy[6])
 
-        self.perform_tests()
+        #self.perform_tests()
 
         # Fit exchange pre-factors (and potentially exponents, depending on
         # value of self.fit_bii)
@@ -3342,9 +3342,11 @@ class FitFFParameters:
         # order to get 2nd order induction energy
         d.qshell2 = np.zeros_like(d.qshell2)
         efield = d.get_efield(0,mon=2)
-        template = '{:16.8f}'*3
-        for line in efield:
-            print template.format(*line)
+        template = '{:16.8f}'*3 + '\n'
+        with open('test_efield.dat','w') as f:
+            f.write('Efield\n')
+            for line in efield:
+                f.write(template.format(*line))
 
         sys.exit()
 

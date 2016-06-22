@@ -146,7 +146,8 @@ class Drudes:
         # Initialize drude positions slightly off each core center if set to
         # True. Normally has little effect on convergence, but may matter in
         # some cases.
-        self.initialize_off_center = True
+        #self.initialize_off_center = True
+        self.initialize_off_center = False
 
         # Provide cutoffs for when to treat charges and distances as
         # effectively zero:
@@ -639,6 +640,7 @@ class Drudes:
 
         # Second, compute field due to intermolecular permanent charges and
         # drude oscillators:
+        multipole_efield = np.zeros_like(efield)
         for j in xrange(natoms_j):
             # Shell-permanent multipole interactions
             x1 = shell_xyz_i[:,ishell]
@@ -648,6 +650,7 @@ class Drudes:
             bij = exponents[ishell,j]
             #bij = exponents
             efield += self.get_efield_from_multipole_charge(ishell,j,Multipoles_j,bij,xvec)
+            multipole_efield += self.get_efield_from_multipole_charge(ishell,j,Multipoles_j,bij,xvec)
 
             # Shell-core interactions
             q2 = - qshell_j[j]
@@ -664,6 +667,18 @@ class Drudes:
             x2 = shell_xyz_j[:,j]
             xvec = x1 - x2
             efield += self.get_efield_from_point_charge(q2,bij,xvec)
+
+        ## template = '{:16.8f}'*3
+        ## for line in multipole_efield:
+        ##     print template.format(*line)
+
+        ## template = '{:16.8f}'*3 + '\n'
+        ## with open('test_efield.dat','w') as f:
+        ##     f.write('Efield\n')
+        ##     for line in multipole_efield:
+        ##         f.write(template.format(*line))
+
+        ## sys.exit()
 
         return efield
 ####################################################################################################    
@@ -954,6 +969,12 @@ class Drudes:
             qt += qj*Multipoles_j.get_interaction_tensor(i,j,int_type)
 
             delqt += qj*Multipoles_j.get_del_interaction_tensor(i,j,int_type)
+            ## print 'delqt[0] = ', delqt[0]
+            ## #delqt += qj*Multipoles_j.get_del_interaction_tensor2(j,i,int_type[::-1])
+            ## Multipoles_j.get_del_interaction_tensor(i,j,int_type)
+            ## Multipoles_j.get_del_interaction_tensor2(j,i,int_type[::-1])
+
+            ## sys.exit()
             
             if self.damp_charges_only and mj.lstrip('Q') != '00':
                 damp = np.ones_like(qt)

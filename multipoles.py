@@ -702,45 +702,147 @@ class Multipoles:
         r,xa,ya,za,xb,yb,zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz =\
                 sp.symbols(' r xa ya za xb yb zb cxx cxy cxz cyx cyy cyz czx czy czz' )
         for k,v in self.T.items():
+            print k
             if self.limited_delT and '00' not in k:
                 continue
+            elif not self.limited_delT:
+                raise NotTestedError, 'Code has not been tested for multipole derivatives aside from those using point charges!'
+
+            # 4 Components to the del operator
+            # TODO explain this
+            delT = [ [] for i in range(4)]
+
             # Expand r and the unit vectors of a in terms of xa,ya, and za
             # (the cartesian vector marking the distance and direction from site a to b)
+
+            # First set up sympy expressions with respect to ra
             xa, ya, za = sp.symbols('xa ya za')
 
-            xb = cxx*xa + cyx*ya + czx*za
-            yb = cxy*xa + cyy*ya + czy*za
-            zb = cxz*xa + cyz*ya + czz*za
+            ## xb = (cxx*xa + cyx*ya + czx*za)
+            ## yb = (cxy*xa + cyy*ya + czy*za)
+            ## zb = (cxz*xa + cyz*ya + czz*za)
+            ## xb = -1*(cxx*xa + cyx*ya + czx*za)
+            ## yb = -1*(cxy*xa + cyy*ya + czy*za)
+            ## zb = -1*(cxz*xa + cyz*ya + czz*za)
+
+            ## r = (xa**2 + ya**2 + za**2)**.5
+            ## exa = xa/r
+            ## eya = ya/r
+            ## eza = za/r
+            ## ## exb = xb/r
+            ## ## eyb = yb/r
+            ## ## ezb = zb/r
+            ## exb = -xb/r
+            ## eyb = -yb/r
+            ## ezb = -zb/r
+
             r = (xa**2 + ya**2 + za**2)**.5
             exa = xa/r
             eya = ya/r
             eza = za/r
-            exb = xb/r
-            eyb = yb/r
-            ezb = zb/r
+
+            exb = (cxx*exa + cyx*eya + czx*eza)
+            eyb = (cxy*exa + cyy*eya + czy*eza)
+            ezb = (cxz*exa + cyz*eya + czz*eza)
+
+            xb = -exb*r
+            yb = -eyb*r
+            zb = -ezb*r
+
             args = (r,exa,eya,eza,exb,eyb,ezb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
             reduced_args = (xa,ya,za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
-            delT = [ lambdify( reduced_args, sp.diff(v(*args), ia), modules='numpy') 
+            ## if k == ('10','00'):
+            ##     print 'here!'
+            ##     print v(*args)
+            ##     print [ sp.diff(v(*args), ia) for ia in (xa,ya,za) ]
+
+            # Compute del_aT^{ab}_{tu}, where tu = k
+            args = (r,exa,eya,eza,exb,eyb,ezb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+            reduced_args = (xa,ya,za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+            delT[0] = [ lambdify( reduced_args, sp.diff(v(*args), ia), modules='numpy') 
+                        for ia in (xa,ya,za) ]
+
+            # Compute del_aT^{ba}_{tu} = del_bT^{ab}_{ut}, where tu = k
+            #args = (r,exa,eya,eza,exb,eyb,ezb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+
+            # Because we're swapping indices, we need to introduce a negative
+            # sign in front of xa (see Stone Appendix F) since it's now the
+            # 2nd index
+            r = (xa**2 + ya**2 + za**2)**.5
+            exa = -xa/r
+            eya = -ya/r
+            eza = -za/r
+
+            exb = (cxx*exa + cyx*eya + czx*eza)
+            eyb = (cxy*exa + cyy*eya + czy*eza)
+            ezb = (cxz*exa + cyz*eya + czz*eza)
+
+            xb = exb*r
+            yb = eyb*r
+            zb = ezb*r
+
+            args = (r,exb,eyb,ezb,exa,eya,eza,cxx,cyx,czx,cxy,cyy,czy,cxz,cyz,czz)
+            reduced_args = (xa,ya,za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+            #reduced_args = (xb,yb,zb,cxx,cyx,czx,cxy,cyy,czy,cxz,cyz,czz)
+            delT[2] = [ lambdify( reduced_args, sp.diff(v(*args), ia), modules='numpy') 
                         for ia in (xa,ya,za) ]
 
 
+            # Next set up sympy expressions with respect to rb
             xb, yb, zb = sp.symbols('xb yb zb')
-            xa = cxx*xb + cyx*yb + czx*zb
-            ya = cxy*xb + cyy*yb + czy*zb
-            za = cxz*xb + cyz*yb + czz*zb
 
             r = (xb**2 + yb**2 + zb**2)**.5
-            exa = xa/r
-            eya = ya/r
-            eza = za/r
+            exb = -xb/r
+            eyb = -yb/r
+            ezb = -zb/r
+
+            exa = (cxx*exb + cyx*eyb + czx*ezb)
+            eya = (cxy*exb + cyy*eyb + czy*ezb)
+            eza = (cxz*exb + cyz*eyb + czz*ezb)
+
+            xa = exa*r
+            ya = eya*r
+            za = eza*r
+
+            # Compute del_bT^{ab}_{tu}, where tu = k
+            args = (r,exa,eya,eza,exb,eyb,ezb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+            reduced_args = (xb,yb,zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+            delT[1] = [ lambdify( reduced_args, sp.diff(v(*args), ib), modules='numpy') 
+                        for ib in (xb,yb,zb) ]
+
+            # Compute del_bT^{ba}_{tu} = del_aT^{ab}_{ut}, where tu = k
+            r = (xb**2 + yb**2 + zb**2)**.5
             exb = xb/r
             eyb = yb/r
             ezb = zb/r
 
-            args = (r,exa,eya,eza,exb,eyb,ezb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
-            reduced_args = (xb,yb,zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
-            delT += [ lambdify( reduced_args, sp.diff(v(*args), ib), modules='numpy') 
+            exa = (cxx*exb + cyx*eyb + czx*ezb)
+            eya = (cxy*exb + cyy*eyb + czy*ezb)
+            eza = (cxz*exb + cyz*eyb + czz*ezb)
+
+            xa = -exa*r
+            ya = -eya*r
+            za = -eza*r
+            #args = (r,exa,eya,eza,exb,eyb,ezb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+            args = (r,exb,eyb,ezb,exa,eya,eza,cxx,cyx,czx,cxy,cyy,czy,cxz,cyz,czz)
+            #reduced_args = (xb,yb,zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+            reduced_args = (xb,yb,zb,cxx,cyx,czx,cxy,cyy,czy,cxz,cyz,czz)
+            delT[3] = [ lambdify( reduced_args, sp.diff(v(*args), ib), modules='numpy') 
                         for ib in (xb,yb,zb) ]
+
+            ## args = (r,exa,eya,eza,exb,eyb,ezb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+            ## reduced_args = (xb,yb,zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+            ## #sys.exit()
+            ## if k == ('10','00'):
+            ##     print 'here!'
+            ##     print v(*args)
+            ##     print [ sp.diff(v(*args), ib) for ib in (xb,yb,zb) ]
+            ##     #sys.exit()
+            ## delT[1] = [ lambdify( reduced_args, sp.diff(v(*args), ib), modules='numpy') 
+            ##             for ib in (xb,yb,zb) ]
+
+            ## delT += [ lambdify( reduced_args, sp.diff(v(*args), ib), modules='numpy') 
+            ##             for ib in (xb,yb,zb) ]
             self.delT[k] = delT
 
         print 'Finished initializing derivatives for multipole moments.'
@@ -856,7 +958,7 @@ class Multipoles:
 
 
 ####################################################################################################    
-    def get_del_interaction_tensor(self,i,j,interaction_type):
+    def get_del_interaction_tensor(self,i,j,interaction_type,delB=True):
     #def get_interaction_tensor(self,interaction_type,r,eab,ea,eb):
         '''Given a specified rank of multipole moments t and u (on sites a and
         b, respectively) separated by a distance r, where eab is a unit vector
@@ -884,6 +986,167 @@ class Multipoles:
 
         '''
 
+        ## print 'interaction tensor 1!!!!!'
+
+        # If delT hasn't yet been initialized, do so now
+        if not self.delT:
+            # Try and read in interaction tensors from file
+            try:
+                import cloudpickle
+                with open(self.fpik,'rb') as f:
+                    self.delT = cloudpickle.load(f)
+                if self.verbose:
+                    print 'Read in multipole derivatives from the following file:'
+                    print self.fpik
+            except (ImportError, IOError):
+                self.initialize_del_interaction_tensor()
+
+        # Get r, ra, rb, and cab
+        r = self.r[:,i,j]
+        ra = self.ra[:,i,j]
+        rb = self.rb[:,i,j]
+        cab = self.cab
+        cba = self.cba
+
+        if interaction_type in self.delT:
+            # Flatten numpy arguments
+            xa = ra[:,0]
+            ya = ra[:,1]
+            za = ra[:,2]
+
+            xb = rb[:,0]
+            yb = rb[:,1]
+            zb = rb[:,2]
+
+            cxx = cab[:,0,0]
+            cxy = cab[:,0,1]
+            cxz = cab[:,0,2]
+
+            cyx = cab[:,1,0]
+            cyy = cab[:,1,1]
+            cyz = cab[:,1,2]
+
+            czx = cab[:,2,0]
+            czy = cab[:,2,1]
+            czz = cab[:,2,2]
+
+
+            if delB == True:
+                ## print 'in if statement'
+                ## print 'Testing all indices (no swaps):'
+                ## for flag in range(4):
+                ##     print flag
+                ##     ## args = (r*xa,r*ya,r*za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                ##     ## delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                ##     ## print delT[:,0]
+                ##     args = (r*xb,r*yb,r*zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                ##     delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                ##     print delT[:,0]
+                ## print '---'
+                # Compute del_bT^{ab}_{tu}
+                args = (r*xb,r*yb,r*zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                flag = 1 # Need first index of delT equations
+                #delT = np.array([self.delT[interaction_type][flag](*args)])
+                delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+            else:
+                raise NotImplementedError
+
+        else: 
+            # delT for A,B isn't tabulated directly. However, note that
+            # del_bT^{ab}_{ut} = del_aT^{ba}_{tu}. This latter quantity *is*
+            # tabulated, and so we compute del_bT^{ab}_{ut} by swapping the a
+            # and b indices (thus modifying ra, rb, and cab) and computing
+            # del_aT^{ba}_{tu} instead.
+            xa = rb[:,0]
+            ya = rb[:,1]
+            za = rb[:,2]
+
+            xb = ra[:,0]
+            yb = ra[:,1]
+            zb = ra[:,2]
+
+            cxx = cba[:,0,0]
+            cxy = cba[:,0,1]
+            cxz = cba[:,0,2]
+
+            cyx = cba[:,1,0]
+            cyy = cba[:,1,1]
+            cyz = cba[:,1,2]
+
+            czx = cba[:,2,0]
+            czy = cba[:,2,1]
+            czz = cba[:,2,2]
+
+            interaction_type = (interaction_type[1],interaction_type[0])
+
+            if delB == True:
+                # Compute del_bT^{ab}_{ut}, taking advantage of the fact that
+                # del_bT^{ab}_{ut} = del_aT^{ba}_{tu}
+                ## args = (r*xa,r*ya,r*za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                ## flag = 2 # Need second index of delT equations
+                ## delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                ## print 'in else statement'
+                ## print 'Testing all indices:'
+                ## for flag in range(4):
+                ##     print flag
+                ##     args = (r*xa,r*ya,r*za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                ##     delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                ##     print delT[:,0]
+                ##     args = (r*xb,r*yb,r*zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                ##     delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                ##     print delT[:,0]
+                ## print '---'
+
+                args = (r*xa,r*ya,r*za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                flag = 2 # Need second index of delT equations, which corresponds to del_aT^{ba}_{tu}
+                delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+
+            else:
+                raise NotImplementedError, "Should be analagous to delB, but haven't tested this yet."
+
+
+        # Transform to global coordinates
+        delT = np.swapaxes(delT,0,1)
+        ebinv = np.linalg.inv(self.eb)
+        delT = np.sum(ebinv*delT[:,np.newaxis], axis=-1)
+
+        return delT
+
+
+####################################################################################################    
+
+
+####################################################################################################    
+    def get_del_interaction_tensor2(self,j,i,interaction_type,delB=True):
+    #def get_interaction_tensor(self,interaction_type,r,eab,ea,eb):
+        '''Given a specified rank of multipole moments t and u (on sites a and
+        b, respectively) separated by a distance r, where eab is a unit vector
+        in the direction from site a to site b and ea/eb describe the local
+        axis of that multipole moment, compute the interaction tensor
+        T^{ab}_{tu}.
+
+        Parameters
+        ----------
+        interaction_type : tuple of strings
+            2-membered tuple containing, respectively, moments t and u. 
+        r : 1darray
+            Distance between sites a and b.
+        eab : 2darray, size (ndatpts, 3)
+            Unit vector from site a to b
+        ea : 3darray, size (ndatpts,3,3)
+            Unit vector for local axis of site a, where each axis vector is
+            expressed in the global coordinate system
+        eb : 3darray, size (ndatpts,3,3)
+            Same as ea, but for site b
+
+        Returns
+        -------
+        The numerical evaluation of T^{ab}_{tu} for a given r,eab,ea, and eb.
+
+        '''
+
+        print 'interaction tensor 2!!!!!'
+
         # If delT hasn't yet been initialized, do so now
         if not self.delT:
             # Try and read in interaction tensors from file
@@ -898,39 +1161,61 @@ class Multipoles:
                 self.initialize_del_interaction_tensor()
 
         r = self.r[:,i,j]
-        ra = self.ra[:,i,j]
-        rb = self.rb[:,i,j]
-        cab = self.cab
-        cba = self.cba
+        ## ra = self.ra[:,i,j]
+        ## rb = self.rb[:,i,j]
+        rb = self.ra[:,i,j]
+        ra = self.rb[:,i,j]
+        cba = self.cab
+        cab = self.cba
 
         # Flatten numpy arguments
-        xa = ra[:,0]
-        ya = ra[:,1]
-        za = ra[:,2]
+        xb = ra[:,0]
+        yb = ra[:,1]
+        zb = ra[:,2]
 
-        xb = rb[:,0]
-        yb = rb[:,1]
-        zb = rb[:,2]
+        xa = rb[:,0]
+        ya = rb[:,1]
+        za = rb[:,2]
 
         if interaction_type in self.delT:
-            cxx = cab[:,0,0]
-            cxy = cab[:,0,1]
-            cxz = cab[:,0,2]
+            cxx = cba[:,0,0]
+            cxy = cba[:,0,1]
+            cxz = cba[:,0,2]
 
-            cyx = cab[:,1,0]
-            cyy = cab[:,1,1]
-            cyz = cab[:,1,2]
+            cyx = cba[:,1,0]
+            cyy = cba[:,1,1]
+            cyz = cba[:,1,2]
 
-            czx = cab[:,2,0]
-            czy = cab[:,2,1]
-            czz = cab[:,2,2]
+            czx = cba[:,2,0]
+            czy = cba[:,2,1]
+            czz = cba[:,2,2]
 
-            args = (r*xb,r*yb,r*zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
-            delT = np.array([self.delT[interaction_type][i](*args) for i in range(3,6) ])
+            if delB == True:
+                print 'in if statement'
+                print 'Testing all indices:'
+                for flag in range(4):
+                    print flag
+                    ## args = (r*xa,r*ya,r*za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                    ## delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                    ## print delT[:,0]
+                    args = (r*xb,r*yb,r*zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                    delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                    print delT[:,0]
+                print '---'
+                # Compute del_bT^{ab}_{tu}
+                args = (r*xb,r*yb,r*zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                flag = 1 # Need first index of delT equations
+                #delT = np.array([self.delT[interaction_type][flag](*args)])
+                delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                print 'delT',delT[:,0]
+            else:
+                raise NotImplementedError
+
 
             # Transform to global coordinates
             delT = np.swapaxes(delT,0,1)
             ebinv = np.linalg.inv(self.eb)
+            #delT = np.sum(ebinv*delT[:,np.newaxis,:], axis=-1)
             delT = np.sum(ebinv*delT[:,np.newaxis], axis=-1)
 
         else: # delT for A,B isn't listed; try reversing the components
@@ -946,21 +1231,51 @@ class Multipoles:
             czy = cba[:,2,1]
             czz = cba[:,2,2]
 
-            args = (r*xb,r*yb,r*zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
             interaction_type = (interaction_type[1],interaction_type[0])
 
-            delT = np.array([self.delT[interaction_type][i](*args) for i in range(3) ])
+            if delB == True:
+                # Compute del_bT^{ab}_{ut}, taking advantage of the fact that
+                # del_bT^{ab}_{ut} = del_aT^{ba}_{tu}
+                ## args = (r*xa,r*ya,r*za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                ## flag = 2 # Need second index of delT equations
+                ## delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                print 'in else statement'
+                print 'Testing all indices:'
+                for flag in range(4):
+                    ## args = (r*xa,r*ya,r*za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                    ## delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                    ## print delT[:,0]
+                    args = (r*xb,r*yb,r*zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                    delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                    print delT[:,0]
+                print '---'
+
+                args = (r*xa,r*ya,r*za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                flag = 2 # Need second index of delT equations
+                delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+                print 'delT',delT[:,0]
+            else:
+                raise NotImplementedError
+
 
             # Transform to global coordinates
             delT = np.swapaxes(delT,0,1)
             ebinv = np.linalg.inv(self.eb)
-            delT = np.sum(ebinv*delT[:,np.newaxis], axis=-1)
+
+            #print delT[0]
+
+            delT = np.sum(ebinv*delT[:,np.newaxis,:], axis=-1)
+            #delT = np.sum(ebinv*delT[:,np.newaxis], axis=-1)
+
+            #print delT[0]
+
+
+        #sys.exit()
 
         return delT
 
 
 ####################################################################################################    
-
 
 ####################################################################################################    
     def get_multipole_energy(self,i,j,interaction_type):
