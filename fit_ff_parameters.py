@@ -355,7 +355,7 @@ class FitFFParameters:
         # energy components and output results to output files:
         ff_energy = np.zeros_like(self.qm_energy[6])
 
-        #self.perform_tests()
+        self.perform_tests()
 
         # Fit exchange pre-factors (and potentially exponents, depending on
         # value of self.fit_bii)
@@ -1680,7 +1680,7 @@ class FitFFParameters:
         if self.drude_method == 'multipole-gradient':
             print 'Calculating drude oscillator energy using a multipole-gradient method'
             #from drude_oscillators import Drudes
-            from reverse_drude_oscillators import Drudes
+            from drude_oscillators import Drudes
             d = Drudes(self.xyz1, self.xyz2, 
                         self.multipole_file1, self.multipole_file2,
                         self.axes1,self.axes2,
@@ -3325,7 +3325,7 @@ class FitFFParameters:
             exponents = self.all_exponents
 
         print 'Calculating drude oscillator energy using a multipole-gradient method'
-        from reverse_drude_oscillators import Drudes
+        from drude_oscillators import Drudes
         d = Drudes(self.xyz1, self.xyz2, 
                     self.multipole_file1, self.multipole_file2,
                     self.axes1,self.axes2,
