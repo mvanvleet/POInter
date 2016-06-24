@@ -243,26 +243,27 @@ class Drudes:
         if init:
             # M1 class instance for the interaction of mon2 drudes with mon1
             # multipoles
-            m1 = Multipoles(self.shell_xyz2,self.xyz1, self.multipole_file2,
-                    self.multipole_file1,
+            m1 = Multipoles(self.xyz1,self.shell_xyz2, self.multipole_file1,
+                    self.multipole_file2,
                     self.exponents, self.slater_correction)
-            m1.multipoles2, m1.local_coords2 = m1.read_multipoles(self.multipole_file1)
-            m1.eb = m1.get_local_to_global_rotation_matrix(m1.xyz2,m1.local_coords2)
-            m1.multipoles1 = [ {'Q00' : q } for q in self.qshell2 ]
+            m1.multipoles1, m1.local_coords1 = m1.read_multipoles(self.multipole_file1)
+            m1.ea = m1.get_local_to_global_rotation_matrix(m1.xyz1,m1.local_coords1)
+            m1.multipoles2 = [ {'Q00' : q } for q in self.qshell2 ]
             # Here we're assuming that the drude charges are simple point charges;
             # thus is doesn't matter what we consider the local coordinate system
             # for these shell charges
-            m1.ea = np.array([ np.identity(3) for xyz in m1.xyz2])
+            m1.eb = np.array([ np.identity(3) for xyz in m1.xyz2])
 
             # M2 class instance for the interaction of mon1 drudes with mon2
             # multipoles
-            m2 = Multipoles(self.shell_xyz1,self.xyz2, self.multipole_file1,
-                    self.multipole_file2,
+            m2 = Multipoles(self.xyz2,self.shell_xyz1, self.multipole_file2,
+                    self.multipole_file1,
                     self.exponents, self.slater_correction)
-            m2.multipoles2, m2.local_coords2 = m2.read_multipoles(self.multipole_file2)
-            m2.eb = m2.get_local_to_global_rotation_matrix(m2.xyz2,m2.local_coords2)
-            m2.multipoles1 = [ {'Q00' : q } for q in self.qshell1 ]
-            m2.ea = np.array([ np.identity(3) for xyz in m2.xyz1])
+            # TODO: Should exponents be reversed?
+            m2.multipoles1, m2.local_coords1 = m2.read_multipoles(self.multipole_file2)
+            m2.ea = m2.get_local_to_global_rotation_matrix(m2.xyz1,m2.local_coords1)
+            m2.multipoles2 = [ {'Q00' : q } for q in self.qshell1 ]
+            m2.eb = np.array([ np.identity(3) for xyz in m2.xyz1])
 
             self.Mon1Multipoles = m1
             self.Mon2Multipoles = m2
@@ -271,9 +272,9 @@ class Drudes:
 
         else:
             # Update shell positions and vectors
-            self.Mon1Multipoles.xyz1 = self.shell_xyz2
+            self.Mon1Multipoles.xyz2 = self.shell_xyz2
             self.Mon1Multipoles.update_direction_vectors()
-            self.Mon2Multipoles.xyz1 = self.shell_xyz1
+            self.Mon2Multipoles.xyz2 = self.shell_xyz1
             self.Mon2Multipoles.update_direction_vectors()
 
 
@@ -420,7 +421,6 @@ class Drudes:
             x2 = self.xyz1
             dx = x1 - x2
             forces1 = forces1 - self.springcon1*dx
-            #converged1 = np.all(forces1 < thresh)
             converged1 = np.all(np.abs(forces1) < thresh)
 
             if not converged1:
@@ -585,6 +585,7 @@ class Drudes:
             Multipoles_i = self.Mon1Multipoles
             Multipoles_j = self.Mon2Multipoles
 
+
         elif mon == 2:
             natoms_i = self.natoms2
             natoms_j = self.natoms1
@@ -640,7 +641,7 @@ class Drudes:
 
         # Second, compute field due to intermolecular permanent charges and
         # drude oscillators:
-        multipole_efield = np.zeros_like(efield)
+        #multipole_efield = np.zeros_like(efield)
         for j in xrange(natoms_j):
             # Shell-permanent multipole interactions
             x1 = shell_xyz_i[:,ishell]
@@ -649,8 +650,10 @@ class Drudes:
             # TODO: Fix TT damping here
             bij = exponents[ishell,j]
             #bij = exponents
-            efield += self.get_efield_from_multipole_charge(ishell,j,Multipoles_j,bij,xvec)
-            multipole_efield += self.get_efield_from_multipole_charge(ishell,j,Multipoles_j,bij,xvec)
+            efield += self.get_efield_from_multipole_charge(j,ishell,Multipoles_j,bij,xvec)
+            #multipole_efield += self.get_efield_from_multipole_charge(j,ishell,Multipoles_j,bij,xvec)
+            ## efield += self.get_efield_from_multipole_charge(ishell,j,Multipoles_j,bij,xvec)
+            ## multipole_efield += self.get_efield_from_multipole_charge(ishell,j,Multipoles_j,bij,xvec)
 
             # Shell-core interactions
             q2 = - qshell_j[j]
@@ -672,6 +675,7 @@ class Drudes:
         ## for line in multipole_efield:
         ##     print template.format(*line)
 
+        ## print 'writing to file'
         ## template = '{:16.8f}'*3 + '\n'
         ## with open('test_efield.dat','w') as f:
         ##     f.write('Efield\n')
@@ -868,34 +872,38 @@ class Drudes:
 
 
                 # Shell - permanent multipole interactions
-                self.Mon1Multipoles.xyz1 = self.shell_xyz2 # Update shell positions in case these have changed
+                self.Mon1Multipoles.xyz2 = self.shell_xyz2 # Update shell positions in case these have changed
                 self.Mon1Multipoles.update_direction_vectors()
-                for mi in self.Mon1Multipoles.multipoles2[i].keys():
-                    int_type = ('Q00',mi)
+                for mi in self.Mon1Multipoles.multipoles1[i].keys():
+                    #int_type = ('Q00',mi)
+                    int_type = (mi,'Q00')
                     #edrude += self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
-                    edrude += self.Mon1Multipoles.get_multipole_energy(j,i,int_type)
+                    edrude += self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
 
-                self.Mon2Multipoles.xyz1 = self.shell_xyz1 # Update shell positions in case these have changed
+
+                self.Mon2Multipoles.xyz2 = self.shell_xyz1 # Update shell positions in case these have changed
                 self.Mon2Multipoles.update_direction_vectors()
-                for mj in self.Mon2Multipoles.multipoles2[j].keys():
-                    int_type = ('Q00',mj)
-                    edrude += self.Mon2Multipoles.get_multipole_energy(i,j,int_type)
+                for mj in self.Mon2Multipoles.multipoles1[j].keys():
+                    #int_type = ('Q00',mj)
+                    int_type = (mj,'Q00')
+                    #edrude += self.Mon2Multipoles.get_multipole_energy(i,j,int_type)
+                    edrude += self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
 
                 # Core - permanent multipole interactions
-                self.Mon1Multipoles.xyz1 = self.xyz2 # Update shell positions in case these have changed
+                self.Mon1Multipoles.xyz2 = self.xyz2 # Update shell positions in case these have changed
                 self.Mon1Multipoles.update_direction_vectors()
-                for mi in self.Mon1Multipoles.multipoles2[i].keys():
-                    int_type = ('Q00',mi)
-                    #edrude -= self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
-                    edrude -= self.Mon1Multipoles.get_multipole_energy(j,i,int_type)
+                for mi in self.Mon1Multipoles.multipoles1[i].keys():
+                    int_type = (mi,'Q00')
+                    edrude -= self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
+                    #edrude -= self.Mon1Multipoles.get_multipole_energy(j,i,int_type)
                     # Minus sign accounts for the fact that all core
                     # charges have the opposite sign of the shell charges
 
-                self.Mon2Multipoles.xyz1 = self.xyz1 # Update shell positions in case these have changed
+                self.Mon2Multipoles.xyz2 = self.xyz1 # Update shell positions in case these have changed
                 self.Mon2Multipoles.update_direction_vectors()
-                for mj in self.Mon2Multipoles.multipoles2[j].keys():
-                    int_type = ('Q00',mj)
-                    edrude -= self.Mon2Multipoles.get_multipole_energy(i,j,int_type)
+                for mj in self.Mon2Multipoles.multipoles1[j].keys():
+                    int_type = (mj,'Q00')
+                    edrude -= self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
 
 
         # Include spring energy:
@@ -913,7 +921,7 @@ class Drudes:
 
 ####################################################################################################    
     def get_efield_from_multipole_charge(
-            self,i,j,Multipoles_j,bij,xvec,smallq=1e-6): 
+            self,j,ishell,Multipoles_j,bij,xvec,smallq=1e-6): 
         '''Compute the electric field due to a screened electric field
         centered at xvec.
 
@@ -962,17 +970,27 @@ class Drudes:
         ## qt = np.zeros_like(damp)
         ## delqt = np.zeros(damp.shape + (3,))
         efield = np.zeros_like(delqt)
-        for mj,qj in Multipoles_j.multipoles2[j].items():
+        for mj,qj in Multipoles_j.multipoles1[j].items():
             if abs(qj) < smallq:
                 continue
-            int_type = ('00',mj.lstrip('Q'))
-            qt += qj*Multipoles_j.get_interaction_tensor(i,j,int_type)
+            #int_type = ('00',mj.lstrip('Q'))
+            mishell = '00'
+            int_type = (mj.lstrip('Q'),mishell)
+            #qt += qj*Multipoles_j.get_interaction_tensor(i,j,int_type)
+            qt += qj*Multipoles_j.get_interaction_tensor(j,ishell,int_type)
+            ## print 'Interaction Tensor:'
+            ## tens = qj*Multipoles_j.get_interaction_tensor(j,ishell,int_type)
+            ## print tens[0]
+            ## sys.exit()
 
-            delqt += qj*Multipoles_j.get_del_interaction_tensor(i,j,int_type)
+            delqt += qj*Multipoles_j.get_del_interaction_tensor(j,ishell,int_type)
             ## print 'delqt[0] = ', delqt[0]
             ## #delqt += qj*Multipoles_j.get_del_interaction_tensor2(j,i,int_type[::-1])
-            ## Multipoles_j.get_del_interaction_tensor(i,j,int_type)
-            ## Multipoles_j.get_del_interaction_tensor2(j,i,int_type[::-1])
+            #delt1 = Multipoles_j.get_del_interaction_tensor(j,ishell,int_type)
+            #delt2 = Multipoles_j.get_del_interaction_tensor2(j,i,int_type[::-1])
+            ## print
+            ## print 'Efield1', -delt1[0]
+            ## #print 'Efield2', -delt2[0]
 
             ## sys.exit()
             

@@ -1679,7 +1679,8 @@ class FitFFParameters:
             exponents = self.all_exponents
         if self.drude_method == 'multipole-gradient':
             print 'Calculating drude oscillator energy using a multipole-gradient method'
-            from drude_oscillators import Drudes
+            #from drude_oscillators import Drudes
+            from reverse_drude_oscillators import Drudes
             d = Drudes(self.xyz1, self.xyz2, 
                         self.multipole_file1, self.multipole_file2,
                         self.axes1,self.axes2,
@@ -3324,7 +3325,7 @@ class FitFFParameters:
             exponents = self.all_exponents
 
         print 'Calculating drude oscillator energy using a multipole-gradient method'
-        from drude_oscillators import Drudes
+        from reverse_drude_oscillators import Drudes
         d = Drudes(self.xyz1, self.xyz2, 
                     self.multipole_file1, self.multipole_file2,
                     self.axes1,self.axes2,
@@ -3338,11 +3339,26 @@ class FitFFParameters:
                     self.induction_damping_type,
                     self.damp_charges_only)
 
+        ## from drude_oscillators import Drudes
+        ## d = Drudes(self.xyz1, self.xyz2, 
+        ##             self.multipole_file1, self.multipole_file2,
+        ##             self.axes1,self.axes2,
+        ##             self.drude_charges1, self.drude_charges2, 
+        ##             self.springcon1, self.springcon2,
+        ##             #self.all_exponents,
+        ##             exponents,
+        ##             self.thole_param, 
+        ##             self.slater_correction,
+        ##             #self.electrostatic_damping_type,
+        ##             self.induction_damping_type,
+        ##             self.damp_charges_only)
+
         # Set each monomer's drude charges to zero and get drude energy in
         # order to get 2nd order induction energy
         d.qshell2 = np.zeros_like(d.qshell2)
         efield = d.get_efield(0,mon=2)
         template = '{:16.8f}'*3 + '\n'
+        print 'writing efield file'
         with open('test_efield.dat','w') as f:
             f.write('Efield\n')
             for line in efield:
