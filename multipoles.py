@@ -162,6 +162,7 @@ class Multipoles:
         self.multipoles1, self.local_coords1 = self.read_multipoles(self.multipole_file1)
         self.multipoles2, self.local_coords2 = self.read_multipoles(self.multipole_file2)
 
+
         self.ea = self.get_local_to_global_rotation_matrix(self.xyz1,self.local_coords1)
         self.eb = self.get_local_to_global_rotation_matrix(self.xyz2,self.local_coords2)
 
@@ -1026,10 +1027,13 @@ class Multipoles:
 
         # Get r, ra, rb, and cab
         r = self.r[:,i,j]
+        # rb = self.ra[:,i,j]
+        # ra = self.rb[:,i,j]
         ra = self.ra[:,i,j]
         rb = self.rb[:,i,j]
         cab = self.cab
         cba = self.cba
+
 
         if interaction_type in self.delT:
             # Flatten numpy arguments
@@ -1064,6 +1068,8 @@ class Multipoles:
 
             ## print cab[0]
 
+            #sys.exit()
+
             if delB == True:
                 ## print 'in if statement'
                 ## print 'Testing all indices (no swaps):'
@@ -1081,13 +1087,17 @@ class Multipoles:
                 #flag = 1 # Need first index of delT equations
                 # Compute del_aT^{ab}_{tu}
                 args = (r*xa,r*ya,r*za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
+                #args = (r*xb,r*yb,r*zb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
                 flag = 0 # Need first index of delT equations
                 #delT = np.array([self.delT[interaction_type][flag](*args)])
                 delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
+
+                #sys.exit()
             else:
                 raise NotImplementedError
 
         else: 
+            raise NotImplementedError
             # delT for A,B isn't tabulated directly. However, note that
             # del_bT^{ab}_{ut} = del_aT^{ba}_{tu}. This latter quantity *is*
             # tabulated, and so we compute del_bT^{ab}_{ut} by swapping the a
@@ -1143,7 +1153,7 @@ class Multipoles:
                 print '---'
 
                 args = (r*xa,r*ya,r*za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
-                flag = 2 # Need second index of delT equations, which corresponds to del_aT^{ba}_{tu}
+                flag = 0 # Need second index of delT equations, which corresponds to del_aT^{ba}_{tu}
                 delT = np.array([d(*args) for d in self.delT[interaction_type][flag]])
 
             else:
@@ -1159,7 +1169,8 @@ class Multipoles:
         eainv = np.linalg.inv(self.ea)
         delT = np.sum(eainv*delT[:,np.newaxis], axis=-1)
 
-        ## print 'delT[0]', delT[0]
+        #print '-delT[0]', -delT[0]
+        #sys.exit()
 
         return delT
 

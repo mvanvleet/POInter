@@ -317,8 +317,6 @@ class Drudes:
             bij, qi, qj, xij, yij, zij = sp.symbols("bij qi qj xij yij zij")
             tt_damp_inter = lambdify((bij,xij,yij,zij),\
                                     self.get_tt_damping_factor(bij,xij,yij,zij), modules='numpy')
-            ## diff_damp_inter = [ sp.diff(self.get_tt_damping_factor(bij,xij,yij,zij),x)
-            ##                         for x in [xij,yij,zij] ]
             tt_del_damp_inter = [ lambdify((bij,xij,yij,zij),\
                                          sp.diff(self.get_tt_damping_factor(bij,xij,yij,zij),x),\
                                          modules='numpy') \
@@ -436,8 +434,6 @@ class Drudes:
             old_search_vec1 = np.copy(forces1)
 
             # Repeat above procedure for monomer 2
-
-
             forces2 = np.zeros_like(self.xyz2)
             for i in xrange(self.natoms2):
                 if np.abs(self.qshell2[i]) > self.small_q:
@@ -446,7 +442,6 @@ class Drudes:
             x2 = self.xyz2
             dx = x1 - x2
             forces2 = forces2 - self.springcon2*dx
-            #converged2 = np.all(forces2 < thresh)
             converged2 = np.all(np.abs(forces2) < thresh)
 
             if not converged2:
@@ -587,6 +582,7 @@ class Drudes:
 
 
         elif mon == 2:
+
             natoms_i = self.natoms2
             natoms_j = self.natoms1
 
@@ -597,9 +593,6 @@ class Drudes:
 
             qshell_i = self.qshell2
             qshell_j = self.qshell1
-
-            ## qcore_i = self.charges2 - self.qshell2
-            ## qcore_j = self.charges1 - self.qshell1
 
             exponents = np.transpose(self.exponents)
 
@@ -641,7 +634,7 @@ class Drudes:
 
         # Second, compute field due to intermolecular permanent charges and
         # drude oscillators:
-        #multipole_efield = np.zeros_like(efield)
+        multipole_efield = np.zeros_like(efield)
         for j in xrange(natoms_j):
             # Shell-permanent multipole interactions
             x1 = shell_xyz_i[:,ishell]
@@ -649,18 +642,13 @@ class Drudes:
             xvec = x1 - x2
             # TODO: Fix TT damping here
             bij = exponents[ishell,j]
-            #bij = exponents
             efield += self.get_efield_from_multipole_charge(j,ishell,Multipoles_j,bij,xvec)
-            #multipole_efield += self.get_efield_from_multipole_charge(j,ishell,Multipoles_j,bij,xvec)
-            ## efield += self.get_efield_from_multipole_charge(ishell,j,Multipoles_j,bij,xvec)
-            ## multipole_efield += self.get_efield_from_multipole_charge(ishell,j,Multipoles_j,bij,xvec)
 
             # Shell-core interactions
             q2 = - qshell_j[j]
             x1 = shell_xyz_i[:,ishell]
             x2 = xyz_j[:,j]
             xvec = x1 - x2
-            #bij = exponents
             bij = exponents[ishell,j]
             efield += self.get_efield_from_point_charge(q2,bij,xvec)
 
@@ -670,19 +658,6 @@ class Drudes:
             x2 = shell_xyz_j[:,j]
             xvec = x1 - x2
             efield += self.get_efield_from_point_charge(q2,bij,xvec)
-
-        ## template = '{:16.8f}'*3
-        ## for line in multipole_efield:
-        ##     print template.format(*line)
-
-        ## print 'writing to file'
-        ## template = '{:16.8f}'*3 + '\n'
-        ## with open('test_efield.dat','w') as f:
-        ##     f.write('Efield\n')
-        ##     for line in multipole_efield:
-        ##         f.write(template.format(*line))
-
-        ## sys.exit()
 
         return efield
 ####################################################################################################    
@@ -910,7 +885,6 @@ class Drudes:
         # Spring Energy Monomer1
         kdr2 = np.sum(self.springcon1*(self.xyz1 - self.shell_xyz1)**2, axis=-1)
         edrude += 0.5*np.sum(kdr2, axis=-1)
-        #edrude += 0.5*np.sum(self.springcon1*dr2, axis=-1)
         # Spring Energy Monomer 2
         kdr2 = np.sum(self.springcon2*(self.xyz2 - self.shell_xyz2)**2, axis=-1)
         edrude += 0.5*np.sum(kdr2, axis=-1)
@@ -967,32 +941,17 @@ class Drudes:
 
         qt = np.zeros_like(r)
         delqt = np.zeros(r.shape + (3,))
-        ## qt = np.zeros_like(damp)
-        ## delqt = np.zeros(damp.shape + (3,))
         efield = np.zeros_like(delqt)
         for mj,qj in Multipoles_j.multipoles1[j].items():
             if abs(qj) < smallq:
                 continue
-            #int_type = ('00',mj.lstrip('Q'))
             mishell = '00'
             int_type = (mj.lstrip('Q'),mishell)
-            #qt += qj*Multipoles_j.get_interaction_tensor(i,j,int_type)
-            qt += qj*Multipoles_j.get_interaction_tensor(j,ishell,int_type)
-            ## print 'Interaction Tensor:'
-            ## tens = qj*Multipoles_j.get_interaction_tensor(j,ishell,int_type)
-            ## print tens[0]
-            ## sys.exit()
 
-            delqt += qj*Multipoles_j.get_del_interaction_tensor(j,ishell,int_type)
-            ## print 'delqt[0] = ', delqt[0]
-            ## #delqt += qj*Multipoles_j.get_del_interaction_tensor2(j,i,int_type[::-1])
-            #delt1 = Multipoles_j.get_del_interaction_tensor(j,ishell,int_type)
-            #delt2 = Multipoles_j.get_del_interaction_tensor2(j,i,int_type[::-1])
-            ## print
-            ## print 'Efield1', -delt1[0]
-            ## #print 'Efield2', -delt2[0]
-
-            ## sys.exit()
+            # Compute multipole interaction as well as the derivative of the
+            # multipole field
+            qt = qj*Multipoles_j.get_interaction_tensor(j,ishell,int_type)
+            delqt = qj*Multipoles_j.get_del_interaction_tensor(j,ishell,int_type)
             
             if self.damp_charges_only and mj.lstrip('Q') != '00':
                 damp = np.ones_like(qt)
@@ -1015,6 +974,7 @@ class Drudes:
 
             # Compute efield
             efield += -1*( damp[:,np.newaxis]*delqt + ddamp*qt[:,np.newaxis])
+
 
         return efield
 ####################################################################################################    
