@@ -847,38 +847,38 @@ class Drudes:
 
 
                 # Shell - permanent multipole interactions
+                # Mon1 multipoles with Mon2 drude shells
                 self.Mon1Multipoles.xyz2 = self.shell_xyz2 # Update shell positions in case these have changed
                 self.Mon1Multipoles.update_direction_vectors()
                 for mi in self.Mon1Multipoles.multipoles1[i].keys():
-                    #int_type = ('Q00',mi)
                     int_type = (mi,'Q00')
-                    #edrude += self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
                     edrude += self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
 
-
+                # Mon2 multipoles with Mon1 drude shells
                 self.Mon2Multipoles.xyz2 = self.shell_xyz1 # Update shell positions in case these have changed
                 self.Mon2Multipoles.update_direction_vectors()
                 for mj in self.Mon2Multipoles.multipoles1[j].keys():
-                    #int_type = ('Q00',mj)
                     int_type = (mj,'Q00')
-                    #edrude += self.Mon2Multipoles.get_multipole_energy(i,j,int_type)
                     edrude += self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
 
                 # Core - permanent multipole interactions
+                # Mon1 multipoles with Mon2 drude core
                 self.Mon1Multipoles.xyz2 = self.xyz2 # Update shell positions in case these have changed
                 self.Mon1Multipoles.update_direction_vectors()
                 for mi in self.Mon1Multipoles.multipoles1[i].keys():
                     int_type = (mi,'Q00')
                     edrude -= self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
-                    #edrude -= self.Mon1Multipoles.get_multipole_energy(j,i,int_type)
                     # Minus sign accounts for the fact that all core
                     # charges have the opposite sign of the shell charges
 
+                # Mon2 multipoles with Mon1 drude core
                 self.Mon2Multipoles.xyz2 = self.xyz1 # Update shell positions in case these have changed
                 self.Mon2Multipoles.update_direction_vectors()
                 for mj in self.Mon2Multipoles.multipoles1[j].keys():
                     int_type = (mj,'Q00')
                     edrude -= self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
+                    # Minus sign accounts for the fact that all core
+                    # charges have the opposite sign of the shell charges
 
 
         # Include spring energy:
