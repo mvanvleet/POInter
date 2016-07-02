@@ -254,13 +254,16 @@ class FitFFParameters:
         # possible to damp only the point-charge interactions, which ignores
         # the effect of damping the higher-order multipole moments. If the
         # electrostatic damping type is set to 'Tang-Toennies',
-        # separate_induction_damping can be set to True, in which case damping
+        # separate_induction_exponents can be set to True, in which case damping
         # exponents for polarization will be read in separately from the
         # exponents used for repulsion.
         self.electrostatic_damping_type = 'None'
         self.induction_damping_type = 'Tang-Toennies'
         self.damp_charges_only = True
-        self.separate_induction_damping = True
+
+        # Determine whether or not to fit induction exponents separately from
+        # exponents that control the remainder of the FF energy
+        self.separate_induction_exponents = False
 
         # When fitting parameters, choose whether or not to fit
         # dispersion. If fit_isotropic_dispersion is set to True, isotropic
@@ -368,6 +371,10 @@ class FitFFParameters:
                 
         # Fit electrostatic, induction, and dhf pre-factors
         for i in range(1,4): 
+            if i == 2 and self.separate_induction_exponents: # See if bij exponent can be changed
+                self.fit_bii = True
+            else:
+                self.fit_bii = False
             self.component = i
             ff_energy += self.fit_component_parameters()
 
@@ -571,6 +578,7 @@ class FitFFParameters:
         #self.Aparams = [ [] for i in xrange(self.ncomponents) ] # 4 components; exch, elst, ind, dhf
         self.Aparams = [ ] # 4 components; exch, elst, ind, dhf
         self.exponents = {}
+        self.induction_exponents = {}
         self.Cparams = {}
         self.Dparams = {}
         self.anisotropic_atomtypes = []
@@ -579,8 +587,8 @@ class FitFFParameters:
         self.drude_charges2 = []
         self.springcon1 = []
         self.springcon2 = []
-        self.induction_exponents1 = []
-        self.induction_exponents2 = []
+        ## self.induction_exponents1 = []
+        ## self.induction_exponents2 = []
 
         # Initialize list of all hard constraints
         self.fixed_atomtypes = {}
@@ -607,7 +615,6 @@ class FitFFParameters:
                 # Make sure we don't try and fit exponents, and that the
                 # 'residual energy' (which in this case is the total energy
                 # minus hard constraints) is being fit
-                #self.fit_bii = False
                 self.fit_bii = True
                 self.fit_residuals = True
                 self.slater_correction = False
@@ -776,6 +783,30 @@ class FitFFParameters:
                     self.exponents[atom] = bi
                 line = f.readline().split()
 
+            # If separately specified, read in induction exponents (Bind parameters) from file:
+            if self.separate_induction_exponents:
+                f.readline()
+                line = f.readline().split()
+                while len(line) > 0:
+                    atom = line[0]
+                    bi = [float(i) for i in line[1:]]
+                    if self.induction_exponents.has_key(atom) and \
+                            np.all(self.induction_exponents[atom] - bi ):
+                        error_msg = 'Multiple induction exponents for atomtype '+atom+\
+                        ' have been given! Make sure each atomtype has only one set of Bind parameters.'
+                        sys.exit(error_msg)
+                    else:
+                        self.induction_exponents[atom] = bi
+                    line = f.readline().split()
+
+                # Ensure that the number of exponents doesn't differ between
+                # regular exponents and induction exponents
+                for k, v in self.exponents.items():
+                    assert len(v) == len(self.induction_exponents[k]),\
+                        'The number of induction exponents for atomtype '\
+                        + str(k) + \
+                        ' must match the number of regular exponents for that atomtype!'
+
             # Read dispersion coefficients (Cn parameters) from file:
             f.readline()
             line = f.readline().split()
@@ -830,6 +861,12 @@ class FitFFParameters:
                     +  'Please provide B coefficients for the following atomtype: ' , atom
                     print '!!!!!!!!!!!'
                     sys.exit('Exiting.')
+                if self.separate_induction_exponents and not self.induction_exponents.has_key(atom):
+                    print '!!!!!!!!!!!'
+                    print 'Induction exponents (Bind parameters) must be given for all atomtypes. ' \
+                    +  'Please provide Bind coefficients for the following atomtype: ' , atom
+                    print '!!!!!!!!!!!'
+                    sys.exit('Exiting.')
 
             # Read multipole file names
             f.readline()
@@ -849,12 +886,12 @@ class FitFFParameters:
                     self.springcon1.append([float(j) for j in line[1:4]])
                 else:
                     self.springcon1.append([3*float(line[1])])
-                if self.electrostatic_damping_type == 'Tang-Toennies' \
-                        and self.separate_induction_damping:
-                    self.induction_exponents1.append(float(line[4]))
+                ## if self.induction_damping_type == 'Tang-Toennies' \
+                ##         and self.separate_induction_exponents:
+                ##     self.induction_exponents1.append(float(line[4]))
             self.drude_charges1 = np.array(self.drude_charges1)
             self.springcon1 = np.array(self.springcon1)
-            self.induction_exponents1 = np.array(self.induction_exponents1)
+            #self.induction_exponents1 = np.array(self.induction_exponents1)
             f.readline()
             for i in xrange(self.natoms2):
                 line = f.readline().split()[1:]
@@ -863,12 +900,12 @@ class FitFFParameters:
                     self.springcon2.append([float(j) for j in line[1:4]])
                 else:
                     self.springcon2.append([3*float(line[1])])
-                if self.electrostatic_damping_type == 'Tang-Toennies' \
-                        and self.separate_induction_damping:
-                    self.induction_exponents2.append(float(line[4]))
+                ## if self.induction_damping_type == 'Tang-Toennies' \
+                ##         and self.separate_induction_exponents:
+                ##     self.induction_exponents2.append(float(line[4]))
             self.drude_charges2 = np.array(self.drude_charges2)
             self.springcon2 = np.array(self.springcon2)
-            self.induction_exponents2 = np.array(self.induction_exponents2)
+            ## self.induction_exponents2 = np.array(self.induction_exponents2)
 
             # Read parameters for the weighting function, namely eff_mu and eff_kt
             # charges):
@@ -888,6 +925,8 @@ class FitFFParameters:
                 atom_dic['aniso'] = [ j[ib][1:] if j else [] for j in self.Aparams[i] ]
                 atom_dic['B'] = b
                 atom_dic['C'] = self.Cparams[atom]
+                if self.separate_induction_exponents:
+                    atom_dic['Bind'] = self.induction_exponents[atom][ib]
                 self.params[atom].append(atom_dic)
 
         return
@@ -922,6 +961,7 @@ class FitFFParameters:
         # Exponents may vary over the course of the simulation; save their
         # original input values in a separate dictionary 
         self.save_exponents = self.exponents
+        self.save_induction_exponents = self.induction_exponents
 
         # Make sure dispersion fitting options are consistant
         error = 'You cannot set fit_dispersion False and fit_isotropic_dispersion True.'
@@ -1064,28 +1104,38 @@ class FitFFParameters:
         None, though self.exponents is updated
 
         '''
-        # Update exponents dictionary
-        self.exponents = { atom : [self.params[atom][i]['B'] for i in
-                            xrange(len(self.exponents[atom]))] for atom in self.atomtypes }
 
-        # Save array of exponents for later use
-        self.all_exponents = [ [] for i in xrange(self.natoms1)]
-        for i,atom1 in enumerate(self.atoms1):
-            for atom2 in self.atoms2:
-                pi = self.params[atom1]
-                pj = self.params[atom2]
-                bij = [ [] for _ in pi ]
-                for ik, pik in enumerate(pi):
-                    for jl, pjl in enumerate(pj):
-                        bik = pi[ik]['B']
-                        bjl = pj[jl]['B']
-                        bijkl = self.combine_exponent(bik,bjl)
-                        bij[ik].append(bijkl)
-                self.all_exponents[i].append(bij)
-        self.all_exponents = np.array(self.all_exponents)
+        if self.component == 0:
+            # Update exponents dictionary
+            self.exponents = { atom : [self.params[atom][i]['B'] for i in
+                                xrange(len(self.exponents[atom]))] for atom in self.atomtypes }
+
+            # Save array of exponents for later use
+            self.all_exponents = [ [] for i in xrange(self.natoms1)]
+            for i,atom1 in enumerate(self.atoms1):
+                for atom2 in self.atoms2:
+                    pi = self.params[atom1]
+                    pj = self.params[atom2]
+                    bij = [ [] for _ in pi ]
+                    for ik, pik in enumerate(pi):
+                        for jl, pjl in enumerate(pj):
+                            bik = pi[ik]['B']
+                            bjl = pj[jl]['B']
+                            bijkl = self.combine_exponent(bik,bjl)
+                            bij[ik].append(bijkl)
+                    self.all_exponents[i].append(bij)
+            self.all_exponents = np.array(self.all_exponents)
+
+        elif self.component == 2 and self.separate_induction_exponents:
+            # Update induction exponents dictionary
+            self.induction_exponents = { atom : [self.params[atom][i]['Bind'] for i in
+                                xrange(len(self.induction_exponents[atom]))] for atom in self.atomtypes }
+        else:
+            sys.exit('This subroutine should not be accessed outside of the exchange (and possibly induction) fitting subroutines.')
 
         self.fit_bii = False
         self.n_isotropic_params -= 1
+
 
         return
 ####################################################################################################    
@@ -1666,20 +1716,20 @@ class FitFFParameters:
             print 'WARNING: Exponents used in TT damping function arise from '+\
             'the exchange fit, and have not been optimized for the drude '+\
             'oscillators in particular.'
-        if self.induction_damping_type == 'Tang-Toennies' \
-                and self.separate_induction_damping:
-            exponents = [ [ self.combine_exponent(bi,bj) 
-                            for bj in self.induction_exponents2 ] 
-                            for bi in self.induction_exponents1 ]
-            exponents = np.array(exponents)[:,:,np.newaxis,np.newaxis]
-            ## print self.all_exponents.shape
-            ## print exponents.shape
-            ## sys.exit()
-        else:
-            exponents = self.all_exponents
+        ## if self.induction_damping_type == 'Tang-Toennies' \
+        ##         and self.separate_induction_exponents:
+        ##     print 'here'
+        ##     exponents = [ [ self.combine_exponent(bi,bj) 
+        ##                     for bj in self.induction_exponents2 ] 
+        ##                     for bi in self.induction_exponents1 ]
+        ##     print self.induction_exponents1
+        ##     print self.induction_exponents2
+        ##     print exponents
+        ##     exponents = np.array(exponents)[:,:,np.newaxis,np.newaxis]
+        ## else:
+        exponents = self.all_exponents
         if self.drude_method == 'multipole-gradient':
             print 'Calculating drude oscillator energy using a multipole-gradient method'
-            #from drude_oscillators import Drudes
             from drude_oscillators import Drudes
             d = Drudes(self.xyz1, self.xyz2, 
                         self.multipole_file1, self.multipole_file2,
@@ -1735,11 +1785,13 @@ class FitFFParameters:
                     f.write('{:16.8f} {:16.8f}\n'.format(self.edrude_ind[i],self.edrude_dhf[i]))
             with open('drude_positions.dat','w') as f:
                 f.write('Shell_xyz1 positions\n')
-                for line in d.shell_xyz1-d.xyz1:
+                #for line in d.shell_xyz1-d.xyz1:
+                for line in d.shell_xyz1:
                     np.savetxt(f,line)
                     f.write('---\n')
                 f.write('Shell_xyz2 positions\n')
-                for line in d.shell_xyz2-d.xyz2:
+                #for line in d.shell_xyz2-d.xyz2:
+                for line in d.shell_xyz2:
                     np.savetxt(f,line)
                     f.write('---\n')
 
@@ -2221,8 +2273,13 @@ class FitFFParameters:
         for i,atom in enumerate(self.fit_isotropic_atomtypes + self.fit_anisotropic_atomtypes):
         #for atom in self.fit_isotropic_atomtypes + self.fit_anisotropic_atomtypes:
             for ib in xrange(len(self.exponents[atom])):
-                b = mapped_params[i][ib]['B']
-                b0 = self.save_exponents[atom][ib]
+                if self.component == 2 and self.separate_induction_exponents:
+                    b = mapped_params[i][ib]['Bind']
+                    b0 = self.save_induction_exponents[atom][ib]
+                    k = 1e-7
+                else:
+                    b = mapped_params[i][ib]['B']
+                    b0 = self.save_exponents[atom][ib]
                 harmonic_error += k*(b - b0)**2
                 p = self.i_bparams[count]
                 dharmonic_error[p] = 2*k*(b - b0)*b0
@@ -2588,8 +2645,14 @@ class FitFFParameters:
                     iexp = count + shift - len(self.exponents[atom]) + ib
                     param_dic['B'] = params[iexp]
                 elif self.fit_bii:
-                    iexp = count + shift - len(self.exponents[atom]) + ib
-                    param_dic['B'] = params[iexp]*b
+                    if self.separate_induction_exponents and self.component == 2:
+                        iexp = count + shift - len(self.induction_exponents[atom]) + ib
+                        param_dic['B'] = b
+                        bind = self.induction_exponents[atom][ib]
+                        param_dic['Bind'] = params[iexp]*bind
+                    else:
+                        iexp = count + shift - len(self.exponents[atom]) + ib
+                        param_dic['B'] = params[iexp]*b
                 else:
                     param_dic['B'] = b
 
@@ -2661,8 +2724,12 @@ class FitFFParameters:
             and j.
 
         '''
-        bi = params1['B']
-        bj = params2['B']
+        if self.separate_induction_exponents and self.component == 2:
+            bi = params1['Bind']
+            bj = params2['Bind']
+        else:
+            bi = params1['B']
+            bj = params2['B']
         bij = self.combine_exponent(bi,bj,self.bij_combination_rule,mode='sp')
 
         if self.component == 4:
@@ -3020,6 +3087,8 @@ class FitFFParameters:
                     self.params[atom][ib]['aniso'].append(params[i][ib]['aniso'])
                 if self.fit_bii:
                     self.params[atom][ib]['B'] = params[i][ib]['B']
+                if self.fit_bii and self.component == 2 and self.separate_induction_exponents:
+                    self.params[atom][ib]['Bind'] = params[i][ib]['Bind']
 
         return self.params
 ####################################################################################################    
@@ -3120,6 +3189,17 @@ class FitFFParameters:
             # Induction Parameters
             elif self.component == 2:
                 f.write('Drude oscillator energy has been calculated using the following method: ' + self.drude_method + '\n')
+                if self.separate_induction_exponents:
+                    if self.fit_bii:
+                        f.write('Induction Exponents (Optimized):\n')
+                    else:
+                        f.write('Induction Exponents:\n')
+                    for atom in self.atomtypes:
+                        for ib in xrange(len(self.induction_exponents[atom])):
+                            name = atom + '(' + str(ib) + ')'
+                            template = '{:10s} {:8.6f}\n'
+                            b = self.params[atom][ib]['Bind']
+                            f.write(template.format(name,b))
                 f.write('Induction Parameters:\n')
                 f.write('    Functional Form = \n')
                 if self.slater_correction:
@@ -3310,10 +3390,32 @@ class FitFFParameters:
         ##                self.electrostatic_damping_type,self.damp_charges_only)
         ## m.get_multipole_electrostatic_energy()
 
+        # Fit electrostatic, induction, and dhf pre-factors
+        # energy components and output results to output files:
+        ff_energy = np.zeros_like(self.qm_energy[6])
+
+        self.component = 0 
+        self.fit_bii = False
+        ff_energy += self.fit_component_parameters()
+
+        # Once exponents are set, can compute the drude oscillator energy that
+        # will later be needed for induction and dhf components
+        #self.get_drude_oscillator_energy()
+                
+        for i in range(1,3): 
+            if i == 2 and self.separate_induction_exponents: # See if bij exponent can be changed
+                self.fit_bii = True
+            else:
+                self.fit_bii = False
+            self.component = i
+            ff_energy += self.fit_component_parameters()
+
+        sys.exit()
+
 
         #self.get_drude_oscillator_energy()
         if self.induction_damping_type == 'Tang-Toennies' \
-                and self.separate_induction_damping:
+                and self.separate_induction_exponents:
             exponents = [ [ self.combine_exponent(bi,bj) 
                             for bj in self.induction_exponents2 ] 
                             for bi in self.induction_exponents1 ]
