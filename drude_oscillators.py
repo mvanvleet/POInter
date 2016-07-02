@@ -696,20 +696,17 @@ class Drudes:
 
         # Get total drude oscillator energy
         self.find_drude_positions()
-        print 'overall energy:'
         edrude_total = self.get_drude_energy()
 
         # Set each monomer's drude charges to zero and get drude energy in
         # order to get 2nd order induction energy
         self.qshell2 = np.zeros_like(self.qshell2)
         self.find_drude_positions()
-        print 'mon1 energy:'
         edrude_ind1 = self.get_drude_energy()
 
         self.qshell1 = np.zeros_like(self.qshell1)
         self.qshell2 = qshell2_save
         self.find_drude_positions()
-        print 'mon2 energy:'
         edrude_ind2 = self.get_drude_energy()
 
         edrude_ind = edrude_ind1 + edrude_ind2
@@ -811,7 +808,6 @@ class Drudes:
                 edrude += self.damp_intra(qi,qj,dx[:,0],dx[:,1],dx[:,2])*(-qi)*(-qj)/rij
 
         # Intermolecular drude energy between monomers 1 and 2
-        multipole_energy = np.zeros((2,) + edrude.shape  )
         for i,qi in enumerate(self.qshell1):
             for j,qj in enumerate(self.qshell2):
                 bij = self.exponents[i,j]
@@ -863,9 +859,6 @@ class Drudes:
                 for mi in self.Mon1Multipoles.multipoles1[i].keys():
                     int_type = (mi,'Q00')
                     edrude += self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
-                    multipole_energy[0] += self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
-                    print int_type
-                    print 'shell ints', self.Mon1Multipoles.get_multipole_energy(i,j,int_type)[0]
 
                     #print 'shell ints', multipole_energy[0,0]
 
@@ -875,7 +868,6 @@ class Drudes:
                 for mj in self.Mon2Multipoles.multipoles1[j].keys():
                     int_type = (mj,'Q00')
                     edrude += self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
-                    multipole_energy[1] += self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
 
                 # Core - permanent multipole interactions
                 # Mon1 multipoles with Mon2 drude core
@@ -884,9 +876,6 @@ class Drudes:
                 for mi in self.Mon1Multipoles.multipoles1[i].keys():
                     int_type = (mi,'Q00')
                     edrude -= self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
-                    multipole_energy[0] -= self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
-                    print int_type
-                    print 'core ints', -self.Mon1Multipoles.get_multipole_energy(i,j,int_type)[0]
                     # Minus sign accounts for the fact that all core
                     # charges have the opposite sign of the shell charges
 
@@ -898,17 +887,8 @@ class Drudes:
                 for mj in self.Mon2Multipoles.multipoles1[j].keys():
                     int_type = (mj,'Q00')
                     edrude -= self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
-                    multipole_energy[1] -= self.Mon1Multipoles.get_multipole_energy(j,i,int_type)
                     # Minus sign accounts for the fact that all core
                     # charges have the opposite sign of the shell charges
-
-
-        with open('edrudes_multipole.dat','w') as f:
-            for line in multipole_energy[:,0:4]:
-                template = '{:16.8f}'*2 + '\n'
-                f.write(template.format(*line))
-
-
 
         # Include spring energy:
         # Spring Energy Monomer1
