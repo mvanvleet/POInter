@@ -1058,35 +1058,6 @@ class FitFFParameters:
 ####################################################################################################    
 
 
-## ####################################################################################################    
-##     def combine_exponents(self):
-##         '''Create cross-terms for exponents according to input combination
-##         rule.
-## 
-##         Parameters
-##         ----------
-##         None, though implictly depends on choice of bij_combination_rule
-## 
-##         Returns
-##         -------
-##         self.exponents : 2darray (natoms1 x natoms2)
-##             Array of exponents bij
-##         
-##         '''
-##         bi, bj = sym.symbols(" bi bj")
-##         self.combine_num_exponent = lambdify((bi,bj),self.combine_exponent(bi,bj,self.bij_combination_rule),modules='numpy')
-## 
-##         self.exponents = [ [] for i in xrange(self.natoms1)]
-##         for i,bi in enumerate(self.exponents1):
-##             for bj in self.exponents2:
-##                 bij = self.combine_num_exponent(bi,bj)
-##                 self.exponents[i].append(bij)
-## 
-##         self.exponents = np.array(self.exponents)
-##         return self.exponents
-## ####################################################################################################    
-
-
 ####################################################################################################    
     def recalculate_exponents(self):
         '''Recalculate Bij parameters using combination rules.
@@ -1716,17 +1687,6 @@ class FitFFParameters:
             print 'WARNING: Exponents used in TT damping function arise from '+\
             'the exchange fit, and have not been optimized for the drude '+\
             'oscillators in particular.'
-        ## if self.induction_damping_type == 'Tang-Toennies' \
-        ##         and self.separate_induction_exponents:
-        ##     print 'here'
-        ##     exponents = [ [ self.combine_exponent(bi,bj) 
-        ##                     for bj in self.induction_exponents2 ] 
-        ##                     for bi in self.induction_exponents1 ]
-        ##     print self.induction_exponents1
-        ##     print self.induction_exponents2
-        ##     print exponents
-        ##     exponents = np.array(exponents)[:,:,np.newaxis,np.newaxis]
-        ## else:
         exponents = self.all_exponents
         if self.drude_method == 'multipole-gradient':
             print 'Calculating drude oscillator energy using a multipole-gradient method'
@@ -1827,6 +1787,8 @@ class FitFFParameters:
         '''
         self.n_isotropic_params = self.default_n_isotropic_params
 
+        print self.default_n_isotropic_params
+
         # Add additional parameters for scaling exponents, if necessary
         if self.fit_bii:
             # Add one additional parameter per atomtype to account for scaling
@@ -1858,12 +1820,14 @@ class FitFFParameters:
             bbound = (1e-2,1e3)
         else:
             raise NotImplementedError
-        unbound = (-1e1,1e1)
+        aanisobound = (-1e1,1e1)
         # For isotropic atomtypes, constrain all parameters to be positive
         # For anisotropic atomtypes, only constrain first (and possibly
         # last) parameters (corresponding to A and B, respectively) to be
         # positive
         n_aiso = self.n_isotropic_params if not self.fit_bii else self.n_isotropic_params - 1
+        n_aiso += n_general_params
+        print n_aiso 
         if self.component == 4:
             n_aaniso = n_aiso if self.fit_isotropic_dispersion else n_aiso + 1
         else:
@@ -1885,9 +1849,12 @@ class FitFFParameters:
             bounds_iso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
                             m*[bbound])
                             for n,m,j in zip(nsets_iso,msets_iso,self.fit_isotropic_atomtypes) ]
+            bounds_iso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
+                            m*[bbound])
+                            for n,m,j in zip(nsets_iso,msets_iso,self.fit_isotropic_atomtypes) ]
 
             bounds_aniso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
-                            [unbound for i in v] +
+                            [aanisobound for i in v] +
                             m*[bbound] )
                             for n,m,k,v in zip(nsets_aniso,
                                             msets_aniso,
@@ -1919,7 +1886,7 @@ class FitFFParameters:
             bounds_iso = [ n*([abound for i in range(self.n_isotropic_params)]) 
                             for n,i in zip(nsets_iso,self.fit_isotropic_atomtypes) ]
             bounds_aniso =[ n*([abound for i in range(self.n_isotropic_params)]) + 
-                            [unbound for i in v] 
+                            [aanisobound for i in v] 
                             for n,k,v in zip(nsets_aniso,
                                             self.anisotropic_symmetries.keys(), 
                                             self.anisotropic_symmetries.values()) \
@@ -1928,7 +1895,7 @@ class FitFFParameters:
             bounds_iso = [ n*([abound for i in range(self.n_isotropic_params)]) 
                             for n,i in zip(nsets_iso,self.fit_isotropic_atomtypes) ]
             bounds_aniso =[ n*([abound for i in range(self.n_isotropic_params)] + 
-                            [unbound for i in v] )
+                            [aanisobound for i in v] )
                             for n,k,v in zip(nsets_aniso,
                                             self.anisotropic_symmetries.keys(), 
                                             self.anisotropic_symmetries.values()) \
@@ -1946,9 +1913,15 @@ class FitFFParameters:
 
         ntot_params = len(bnds)
 
-        if self.fit_universal_k and self.component != 4:
-            # Add parameter for K proportionality constant
-            ntot_params += 1
+        #if self.fit_universal_k and self.component != 4:
+        if self.fit_universal_k:
+            if self.component == 4 and not self.fit_isotropic_dispersion:
+                pass
+            else:
+                # Add parameter for K proportionality constant
+                kbound = (1e-4,1e4)
+                ntot_params += 1
+                bnds += [kbound]
 
         # Perform initial energy call to set up function and derivative
         # subroutines
