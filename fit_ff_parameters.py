@@ -252,18 +252,19 @@ class FitFFParameters:
         # Choose damping method for electrostatic interactions. Currently
         # accepted options are 'None' and 'Tang-Toennies'. In addition, it is
         # possible to damp only the point-charge interactions, which ignores
-        # the effect of damping the higher-order multipole moments. If the
-        # electrostatic damping type is set to 'Tang-Toennies',
-        # separate_induction_exponents can be set to True, in which case damping
-        # exponents for polarization will be read in separately from the
-        # exponents used for repulsion.
+        # the effect of damping the higher-order multipole moments. 
         self.electrostatic_damping_type = 'None'
-        self.induction_damping_type = 'Tang-Toennies'
         self.damp_charges_only = True
+        # Choose whether to inlude the charge penetration term due to the
+        # overlap of Slater orbitals in the hard constraint energy for
+        # electrostatics
+        self.include_slater_charge_penetration = False
 
         # Determine whether or not to fit induction exponents separately from
         # exponents that control the remainder of the FF energy
         self.separate_induction_exponents = False
+        # Set the induction damping type
+        self.induction_damping_type = 'Tang-Toennies'
 
         # When fitting parameters, choose whether or not to fit
         # dispersion. If fit_isotropic_dispersion is set to True, isotropic
@@ -775,7 +776,7 @@ class FitFFParameters:
                 atom = line[0]
                 bi = [float(i) for i in line[1:]]
                 if self.exponents.has_key(atom) and \
-                        np.all(self.exponents[atom] - bi ):
+                        np.all(np.array(self.exponents[atom]) - np.array(bi) ):
                     error_msg = 'Multiple exponents for atomtype '+atom+\
                     ' have been given! Make sure each atomtype has only one set of B parameters.'
                     sys.exit(error_msg)
@@ -1276,22 +1277,33 @@ class FitFFParameters:
         bi_equal_bj = (bi - bj < tol)
         bij = self.combine_exponent(bi,bj,self.bij_combination_rule,mode='sp')
 
-        if self.exact_radial_correction and self.fit_bii:
-            # If we're scaling bii, we need to evaluate the radial correction as a
-            # piecewise function, in case bi and bj alternate between being
-            # in and outside of tolerance
-            test = (bi - bj > tol)
-            return sym.Piecewise(\
-                    (functional_forms.get_exact_slater_overlap(bi,bj,rij),test),\
-                    (functional_forms.get_approximate_slater_overlap(bij,rij), True))
-        elif self.exact_radial_correction:
-            if bi_equal_bj:
-                return functional_forms.get_approximate_slater_overlap(bij,rij)
-            else:
-                return functional_forms.get_exact_slater_overlap(bi,bj,rij)
+        if self.component in [1,2,3] and self.include_slater_charge_penetration:
+            # Compute the radial pre-factor based on the coulomb integral
+            # between Slater orbitals. Currently this coulomb integral is used to
+            # evaluate electrostatic and inductive charge penetration.
+            assert not self.exact_radial_correction, "Haven't yet coded in exact charge penetration equation"
+            return functional_forms.get_approximate_slater_coulomb_polynomial(bij,rij)
+            #return functional_forms.get_approximate_slater_coulomb_polynomial(bij,rij,normalized=True)
 
         else:
-            return functional_forms.get_approximate_slater_overlap(bij,rij)
+            # Compute the radial pre-factor based on the overlap integral
+            # between Slater orbitals. Currently the overlap model is used to
+            # treat exchange, and (implicitly) dispersion.
+            if self.exact_radial_correction and self.fit_bii:
+                # If we're scaling bii, we need to evaluate the radial correction as a
+                # piecewise function, in case bi and bj alternate between being
+                # in and outside of tolerance
+                test = (bi - bj > tol)
+                return sym.Piecewise(\
+                        (functional_forms.get_exact_slater_overlap(bi,bj,rij),test),\
+                        (functional_forms.get_approximate_slater_overlap_polynomial(bij,rij), True))
+            elif self.exact_radial_correction:
+                if bi_equal_bj:
+                    return functional_forms.get_approximate_slater_overlap_polynomial(bij,rij)
+                else:
+                    return functional_forms.get_exact_slater_overlap(bi,bj,rij)
+            else:
+                return functional_forms.get_approximate_slater_overlap_polynomial(bij,rij)
 ####################################################################################################    
 
 
@@ -1675,7 +1687,7 @@ class FitFFParameters:
 
         '''
         # If all drude charges are zero, skip oscillator convergence:
-        if np.allclose(self.drude_charges1,np.zeros_like(self.drude_charges1)) \
+        if not self.drude_method == 'read' and np.allclose(self.drude_charges1,np.zeros_like(self.drude_charges1)) \
             and np.allclose(self.drude_charges2,np.zeros_like(self.drude_charges2)):
             print 'No drude oscillators, so skipping oscillator convergence step.'
             self.edrude_ind = np.zeros_like(self.qm_energy[6])
@@ -1738,22 +1750,23 @@ class FitFFParameters:
         else:
             raise NotImplementedError
 
-        if self.drude_method != 'read':
-            with open(self.drude_file,'w') as f:
+        if self.drude_method != 'read' or self.drude_file != 'edrudes.dat':
+            #with open(self.drude_file,'w') as f:
+            with open('edrudes.dat','w') as f:
                 f.write('Edrude_ind \t\t Edrude_dhf\n')
                 for i in xrange(len(self.edrude_ind)):
                     f.write('{:16.8f} {:16.8f}\n'.format(self.edrude_ind[i],self.edrude_dhf[i]))
-            with open('drude_positions.dat','w') as f:
-                f.write('Shell_xyz1 positions\n')
-                #for line in d.shell_xyz1-d.xyz1:
-                for line in d.shell_xyz1:
-                    np.savetxt(f,line)
-                    f.write('---\n')
-                f.write('Shell_xyz2 positions\n')
-                #for line in d.shell_xyz2-d.xyz2:
-                for line in d.shell_xyz2:
-                    np.savetxt(f,line)
-                    f.write('---\n')
+            ## with open('drude_positions.dat','w') as f:
+            ##     f.write('Shell_xyz1 positions\n')
+            ##     #for line in d.shell_xyz1-d.xyz1:
+            ##     for line in d.shell_xyz1:
+            ##         np.savetxt(f,line)
+            ##         f.write('---\n')
+            ##     f.write('Shell_xyz2 positions\n')
+            ##     #for line in d.shell_xyz2-d.xyz2:
+            ##     for line in d.shell_xyz2:
+            ##         np.savetxt(f,line)
+            ##         f.write('---\n')
 
         return self.edrude_ind, self.edrude_dhf
 ####################################################################################################    
@@ -1787,12 +1800,14 @@ class FitFFParameters:
         '''
         self.n_isotropic_params = self.default_n_isotropic_params
 
-        print self.default_n_isotropic_params
-
-        # Add additional parameters for scaling exponents, if necessary
+        # Add additional parameters, if necessary
         if self.fit_bii:
             # Add one additional parameter per atomtype to account for scaling
             # exponents
+            self.n_isotropic_params += 1
+        if self.functional_form == 'lennard-jones' and self.component == 5:
+            # Add one additional parameter per atomtype to account for fitting
+            # both sigma and epsilon 
             self.n_isotropic_params += 1
 
         # Determine total number of parameters to be fit
@@ -1827,7 +1842,6 @@ class FitFFParameters:
         # positive
         n_aiso = self.n_isotropic_params if not self.fit_bii else self.n_isotropic_params - 1
         n_aiso += n_general_params
-        print n_aiso 
         if self.component == 4:
             n_aaniso = n_aiso if self.fit_isotropic_dispersion else n_aiso + 1
         else:
@@ -2084,6 +2098,9 @@ class FitFFParameters:
                     f.write('# Eelst \t\t Emultipole \n')
                     for q, m in zip(self.qm_energy[self.component],multipole_energy):
                         f.write('{:16.8f} {:16.8f}\n'.format(q,m))
+
+            if self.include_slater_charge_penetration:
+                pass
 
         # For induction and DHF, subtract off drude oscillator energy
         elif self.component == 2:
@@ -3585,7 +3602,10 @@ class FitFFParameters:
 
         start = [ i for i in xrange(len(data)) if 'total' in data[i] ][0] + 1
         end = [ i for i in xrange(len(data)) if data[i] and data[i][0] == 'Finished'][0] - 1
-        self.multipole_energy = np.array([ float(i[-1]) for i in data[start:end]])
+        self.multipole_energy = np.array([ float(i[-5]) for i in data[start:end]])
+
+
+        self.multipole_energy /= 2625.5 # convert to Ha
 
         return self.multipole_energy
 ####################################################################################################    

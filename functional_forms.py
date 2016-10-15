@@ -203,15 +203,43 @@ def get_exact_slater_overlap(bi,bj,rij):
 
 
 ####################################################################################################    
-def get_approximate_slater_overlap(bij,rij,normalized=True):
-    '''Computes the approximate form of the slater overlap, which is only
-    formally exact for cases where bi=bj.
+def get_approximate_slater_overlap_polynomial(bij,rij,normalized=False):
+    '''Computes the approximate form of the polynomial prefactor involved in
+    the overlap of two s-type slater densities, which is only
+    formally exact for bi=bj.
     '''
 
     if normalized:
-        return ((bij*rij)**2)/3 + bij*rij + 1
+        # The normalized Slater density is of the form p(r) = b^3/(8pi)*exp(-br)
+        prefac = (bij**3/(8*np.pi))**(2)
+        return prefac*(((bij*rij)**2)/3 + bij*rij + 1)
     else:
-        return rij**2/bij + 3*rij/bij**2 + 3/bij**3
+        # The unnormalized Slater density is of the form p(r) = exp(-br)
+        return ((bij*rij)**2)/3 + bij*rij + 1
+
+    ## if normalized:
+    ##     return ((bij*rij)**2)/3 + bij*rij + 1
+    ## else:
+    ##     return rij**2/bij + 3*rij/bij**2 + 3/bij**3
+####################################################################################################    
+
+
+####################################################################################################    
+def get_approximate_slater_coulomb_polynomial(bij,rij,normalized=False):
+    '''Computes the approximate form of the charge penetration as given by the
+    non-asymptotic portion of the Coulomb integral for s-type Slater
+    densities. Note that the below expression is only formally exact for
+    bi=bj.
+    '''
+
+    if normalized:
+        # The normalized Slater density is of the form p(r) = b^3/(8pi)*exp(-br)
+        return 1/rij*(1 + (11.0/16)*(bij*rij) + (3.0/16)*(bij*rij)**2 + (1.0/48)*(bij*rij)**3)
+    else:
+        # The unnormalized Slater density is of the form p(r) = exp(-br)
+        prefac = (bij**3/(8*np.pi))**(-2)
+        return prefac/rij*\
+                (1 + (11.0/16)*(bij*rij) + (3.0/16)*(bij*rij)**2 + (1.0/48)*(bij*rij)**3)
 ####################################################################################################    
 
 

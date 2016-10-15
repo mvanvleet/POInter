@@ -158,7 +158,7 @@ class Drudes:
         self.verbose = True
 
         # Scale the electric fields (those induced by multipole moments) by
-        # this amount:
+        # this amount (primarily for debugging purposes):
         self.multipole_efield_scale_factor = 1.00
 
         # Filename to store damping functions
