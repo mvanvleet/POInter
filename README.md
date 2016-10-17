@@ -1,7 +1,7 @@
 ## POInter: Parameter Optimization for Intermolecular Force Fields
 
 
-![](./pointer_3.png =300x)
+![](./docs/pointer_3.png =300x)
 
 Introduction
 ------------

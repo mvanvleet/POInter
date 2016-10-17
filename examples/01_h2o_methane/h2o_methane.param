@@ -49,17 +49,17 @@ h2o_ISA_L2.mom
 monomer 2
 methane_ISA_L2.mom
 
-DRUDE CHARGES
+DRUDE PARAMETERS (q     kx  ky  kz )
 monomer 1
- -0.979352
-  0.000000
-  0.000000
+OH2  -0.979352     0.1 0.1 0.1
+H2O  0.000000     0.1 0.1 0.1
+H2O  0.000000     0.1 0.1 0.1
 monomer 2
- -1.295891
-  0.000000
-  0.000000
-  0.000000
-  0.000000
+CT -1.295891     0.1 0.1 0.1
+HT  0.000000     0.1 0.1 0.1
+HT  0.000000     0.1 0.1 0.1
+HT  0.000000     0.1 0.1 0.1
+HT  0.000000     0.1 0.1 0.1
 
 FITTING PARAMETERS
 eff_mu(Ha)  0.000
