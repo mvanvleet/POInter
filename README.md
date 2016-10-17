@@ -32,3 +32,14 @@ Issues with the code (bugs, unclear documentation, suggestions for improvement)
 should be reported with the issue tracker.
 
 
+Dependencies
+------------
+To run properly, POInter requires the following python packages:
+
+* Numpy
+* Scipy
+* Sympy
+* [Cloudpickle](https://github.com/cloudpipe/cloudpickle) (optional, but speeds up multipole calculations)
+
+
+
