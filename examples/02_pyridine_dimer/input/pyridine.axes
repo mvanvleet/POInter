@@ -1,0 +1,8 @@
+Pyridine
+N   c2v     y10 y20 y22c
+
+Axes
+ATOM#   AXIS (z or x)   Atomic Indices defining vector (either 2 or more integers)
+5 z 5 6 10
+5 x 5 6
+
