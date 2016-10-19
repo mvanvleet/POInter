@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """This script combines several files containing atomtypes and force field
 fitting parameters into a single parameter file, and runs the
-fit_ff_parameters
+fit_ff_parameters code to optimize force field parameters. 
 
 Last Updated: October 19, 2016 by mvanvleet
 """
@@ -13,7 +13,6 @@ import os
 import subprocess
 
 # POInter specific modules
-from chemistry import io
 from force_field_fitting.fit_ff_parameters import FitFFParameters
 
 ###########################################################################
@@ -26,15 +25,15 @@ mon2 = 'pyridine'
 
 
 ################# Locations of input files #################
-maindir='./input/'
-sapt_dir = maindir 
-atomtypes_dir = maindir 
-exponents_dir = maindir 
-drudes_dir = maindir 
-dispersion_dir = maindir 
-multipoles_dir = maindir 
+inputdir='./input/'
+sapt_dir = inputdir 
+atomtypes_dir = inputdir 
+exponents_dir = inputdir 
+drudes_dir = inputdir 
+dispersion_dir = inputdir 
+multipoles_dir = inputdir 
 multipoles_suffix = '_ISA_L2.mom'
-anisotropy_dir= maindir
+anisotropy_dir= inputdir
 ################# Locations of input files #################
 
 
@@ -311,7 +310,7 @@ def get_dispersion_coeffs(molecule):
         lines = [line.split() for line in data]
 
     # Read in molecule labels from dispersion file
-    with open(atomtypes_dir + molecule + '.xyz','r') as f:
+    with open(atomtypes_dir + molecule + '.atomtypes','r') as f:
         atoms = [ line.split()[0] for line in f.readlines()[2:] ]
 
     dispersion_coeffs = {}
@@ -389,8 +388,6 @@ exponents_mon2 = get_exponents(mon2)
 Aparams_mon1 = [ [0,i] for i in exponents_mon1] 
 Aparams_mon2 = [ [0,i] for i in exponents_mon2] 
 
-# atomtypes_mon1 = [ line[0] for line in io.ReadCoordinates(atomtypes_dir + mon1 + '.xyz')[0] ]
-# atomtypes_mon2 = [ line[0] for line in io.ReadCoordinates(atomtypes_dir + mon2 + '.xyz')[0] ]
 atomtypes_mon1 = [ line[0] for line in ReadCoordinates(atomtypes_dir + mon1 + '.xyz')[0] ]
 atomtypes_mon2 = [ line[0] for line in ReadCoordinates(atomtypes_dir + mon2 + '.xyz')[0] ]
 
