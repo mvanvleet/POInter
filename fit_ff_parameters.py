@@ -2410,15 +2410,19 @@ class FitFFParameters:
                 Ai_atom1 = params[param_map[atom1]]
             for atom2 in self.atomtypes[i:]:
                 # Check that atom pair energy will actually be calculated;
-                # avoid computation for atom pairs only appearing in one
-                # monomer
+                # avoid unecessary computation of intramolecular atom pairs 
+                compute = False
                 if atom1 in self.atoms1:
-                    if atom2 not in self.atoms2:
-                        continue
-                elif atom1 in self.atoms2:
-                    if atom2 not in self.atoms1:
-                        continue
+                    if atom2 in self.atoms2:
+                        compute = True
+                if atom1 in self.atoms2:
+                    if atom2 in self.atoms1:
+                        compute = True
+                if not compute:
+                    continue
 
+                # Treat dispersion fitting slightly differently than other A
+                # parameter fitting
                 if self.component == 4:
                     Aj_atom2 = self.params[atom2]
                 elif atom2 in self.fixed_atomtypes:
@@ -2426,6 +2430,7 @@ class FitFFParameters:
                 else:
                     Aj_atom2 = params[param_map[atom2]]
 
+                # Get pairwise interaction energy
                 eij = 0.0
                 d_eij = [0.0 for _ in param_symbols]
                 pair = (atom1, atom2)
