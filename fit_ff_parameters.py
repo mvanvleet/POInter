@@ -1835,7 +1835,8 @@ class FitFFParameters:
             bbound = (1e-2,1e3)
         else:
             raise NotImplementedError
-        aanisobound = (-1e1,1e1)
+        #aanisobound = (-1e1,1e1)
+        aanisobound = (-1e0,1e0)
         # For isotropic atomtypes, constrain all parameters to be positive
         # For anisotropic atomtypes, only constrain first (and possibly
         # last) parameters (corresponding to A and B, respectively) to be
@@ -1860,34 +1861,40 @@ class FitFFParameters:
             msets_iso = [ len(self.exponents[a]) for a in self.fit_isotropic_atomtypes ]
             msets_aniso = [ len(self.exponents[a]) for a in self.anisotropic_atomtypes ]
         if self.fit_bii:
-            bounds_iso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
-                            m*[bbound])
-                            for n,m,j in zip(nsets_iso,msets_iso,self.fit_isotropic_atomtypes) ]
+            ## bounds_iso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
+            ##                 m*[bbound])
+            ##                 for n,m,j in zip(nsets_iso,msets_iso,self.fit_isotropic_atomtypes) ]
             bounds_iso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
                             m*[bbound])
                             for n,m,j in zip(nsets_iso,msets_iso,self.fit_isotropic_atomtypes) ]
 
+            ## bounds_aniso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
+            ##                 [aanisobound for i in v] +
+            ##                 m*[bbound] )
+            ##                 for n,m,k,v in zip(nsets_aniso,
+            ##                                 msets_aniso,
+            ##                                 self.anisotropic_symmetries.keys(), 
+            ##                                 self.anisotropic_symmetries.values()) \
+            ##                 if k in self.fit_anisotropic_atomtypes ]
             bounds_aniso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
-                            [aanisobound for i in v] +
+                            [aanisobound for i in self.anisotropic_symmetries[a]] +
                             m*[bbound] )
-                            for n,m,k,v in zip(nsets_aniso,
+                            for n,m,a in zip(nsets_aniso,
                                             msets_aniso,
-                                            self.anisotropic_symmetries.keys(), 
-                                            self.anisotropic_symmetries.values()) \
-                            if k in self.fit_anisotropic_atomtypes ]
+                                            self.fit_anisotropic_atomtypes)]
+                                            #self.anisotropic_symmetries.values()) \
+                            # if a in self.fit_anisotropic_atomtypes ]
             # Store locations of b parameters for later use in harmonic
             # constraint error
             pos_bparams = [ n*([0 for i in range(self.n_isotropic_params-1)] + 
                             m*[1])
                             for n,m,j in zip(nsets_iso,msets_iso,self.fit_isotropic_atomtypes) ]
             pos_aniso_bparams =[ n*([0 for i in range(self.n_isotropic_params-1)] + 
-                            [0 for i in v] +
+                            [0 for i in self.anisotropic_symmetries[a]] +
                             m*[1] )
-                            for n,m,k,v in zip(nsets_aniso,
+                            for n,m,a in zip(nsets_aniso,
                                             msets_aniso,
-                                            self.anisotropic_symmetries.keys(), 
-                                            self.anisotropic_symmetries.values()) \
-                            if k in self.fit_anisotropic_atomtypes ]
+                                            self.fit_anisotropic_atomtypes)]
             if pos_bparams + pos_aniso_bparams == []:
                 self.i_bparams = []
             else:
@@ -1900,20 +1907,18 @@ class FitFFParameters:
             bounds_iso = [ n*([abound for i in range(self.n_isotropic_params)]) 
                             for n,i in zip(nsets_iso,self.fit_isotropic_atomtypes) ]
             bounds_aniso =[ n*([abound for i in range(self.n_isotropic_params)]) + 
-                            [aanisobound for i in v] 
-                            for n,k,v in zip(nsets_aniso,
-                                            self.anisotropic_symmetries.keys(), 
-                                            self.anisotropic_symmetries.values()) \
-                            if k in self.fit_anisotropic_atomtypes ]
+                            [aanisobound for i in self.anisotropic_symmetries[a]] 
+                            for n,m,a in zip(nsets_aniso,
+                                            msets_aniso,
+                                            self.fit_anisotropic_atomtypes)]
         else:
             bounds_iso = [ n*([abound for i in range(self.n_isotropic_params)]) 
                             for n,i in zip(nsets_iso,self.fit_isotropic_atomtypes) ]
             bounds_aniso =[ n*([abound for i in range(self.n_isotropic_params)] + 
-                            [aanisobound for i in v] )
-                            for n,k,v in zip(nsets_aniso,
-                                            self.anisotropic_symmetries.keys(), 
-                                            self.anisotropic_symmetries.values()) \
-                            if k in self.fit_anisotropic_atomtypes ]
+                            [aanisobound for i in self.anisotropic_symmetries[a]] )
+                            for n,m,a in zip(nsets_aniso,
+                                            msets_aniso,
+                                            self.fit_anisotropic_atomtypes)]
         tmp = []
         for i in bounds_iso:
             tmp.extend(i)
@@ -1938,8 +1943,15 @@ class FitFFParameters:
                 bnds += [kbound]
 
         # Perform initial energy call to set up function and derivative
-        # subroutines
-        p0=np.array([1.0 for i in xrange(ntot_params)])
+        # subroutines. Initial guess for a and b parameters is 1, initial
+        # guess for anisotropic parameters is zero. 
+        # Right now this line is a hack that uses the anisotropic parameters
+        # boundary conditions to locate the positions of the anisotropic
+        # parameters
+        assert aanisobound not in (abound, bbound),\
+        'Change code to allow for more robust determination of initial anisotropic parameters'
+        p0 = np.array([ 0.0 if bnd == aanisobound else 1 for bnd in bnds])
+
         if self.functional_form == 'lennard-jones' and self.component == 5:
             # I've found that the convergence properties for LJ are very
             # sensitive to the intial parameter guesses; hence the choice of
@@ -1991,8 +2003,11 @@ class FitFFParameters:
             # values can be made smaller in order to tighten convergence
             # criteria.
             maxiter=5000
+
             pgtol=1e-15 
             ftol=1e-17
+            ## pgtol=-1e-17 
+            ## ftol=1e-17
 
             # *Finally*, we're ready to perform the least-squares fitting
             # procedure:
@@ -2303,27 +2318,17 @@ class FitFFParameters:
 
         '''
 
+
         xdata = xrange(len(self.qm_energy[self.component]))
         ff_fit_energy, dff_fit_energy = self.calc_ff_energy(params)
+
         ff_energy = np.array(self.qm_energy[self.component])\
                             -np.array(self.qm_fit_energy) + ff_fit_energy
         qm_energy = self.qm_energy[self.component]
+
         weight = functional_forms.weight(qm_energy, self.eff_mu, self.eff_kt)
         lsq_error =  weight*(ff_energy - qm_energy)**2
 
-        ## if self.component == 4:
-        ##     for i,ff in enumerate(ff_energy):
-        ##         print i, ff
-        ##     print 'ff'
-        ##     print np.min(ff_energy), np.max(ff_energy)
-        ##     print 'qm'
-        ##     print np.min(qm_energy), np.max(qm_energy)
-        ##     print 'weight'
-        ##     print np.min(weight), np.max(weight)
-        ##     print 'lsq'
-        ##     print np.min(lsq_error), np.max(lsq_error)
-
-        ##     sys.exit()
         try:
             dlsq_error = 2*weight*(ff_energy - qm_energy)*dff_fit_energy
         except ValueError: # if params = []
@@ -2675,7 +2680,6 @@ class FitFFParameters:
 
                 mapped_params[iatom].append(param_dic)
 
-
             count += shift
 
         return mapped_params
@@ -2739,7 +2743,11 @@ class FitFFParameters:
         # isotropic or anisotropic. 
         if atom1 in self.anisotropic_atomtypes:
             sph_harm = self.anisotropic_symmetries[atom1]
-            if self.component == 4 or atom1 in self.fixed_atomtypes:
+            if self.component == 4:
+                a = 1.0 # deal with an edge case where dispersion energy would
+                        # go to zero if exchange coefficient was 0
+                Aangular = params1['aniso'][component]
+            elif atom1 in self.fixed_atomtypes:
                 a = params1['A'][component]
                 Aangular = params1['aniso'][component]
             else:
@@ -2747,13 +2755,20 @@ class FitFFParameters:
                 Aangular = params1['aniso']
             ai = functional_forms.get_anisotropic_ai(sph_harm, a,Aangular,rij,theta1,phi1)
         else: #if isotropic
-            if self.component == 4 or atom1 in self.fixed_atomtypes:
+            if self.component == 4:
+                ai = 1.0 # deal with an edge case where dispersion energy would
+                        # go to zero if exchange coefficient was 0
+            elif atom1 in self.fixed_atomtypes:
                 ai = params1['A'][component] 
             else:
                 ai = params1['A']
         if atom2 in self.anisotropic_atomtypes:
             sph_harm = self.anisotropic_symmetries[atom2]
-            if self.component == 4 or atom2 in self.fixed_atomtypes:
+            if self.component == 4:
+                a = 1.0 # deal with an edge case where dispersion energy would
+                        # go to zero if exchange coefficient was 0
+                Aangular = params2['aniso'][component]
+            elif atom2 in self.fixed_atomtypes:
                 a = params2['A'][component]
                 Aangular = params2['aniso'][component]
             else:
@@ -2761,7 +2776,9 @@ class FitFFParameters:
                 Aangular = params2['aniso']
             aj = functional_forms.get_anisotropic_ai(sph_harm, a,Aangular,rij,theta2,phi2)
         else: #if isotropic
-            if self.component == 4 or atom2 in self.fixed_atomtypes:
+            if self.component == 4:
+                aj = 1.0
+            elif atom2 in self.fixed_atomtypes:
                 aj = params2['A'][component] 
             else:
                 aj = params2['A']
@@ -2930,11 +2947,15 @@ class FitFFParameters:
         # isotropic or anisotropic. 
         eij = 0 
 
-        # Calculate TT damping term
+        # Calculate TT damping term. It's worthwhile to simplify x, as
+        # otherwise sympy will (unecessary) carry over anisotropic terms which
+        # ultimately cancel
         y = sym.diff(-sym.ln(eij_exch),rij)
         x = y*rij
-        for i,n in enumerate(range(6,14,2)):
-            cij = self.combine_Cparam(ci[i],cj[i],self.cij_combination_rule)
+        x = sym.simplify(x)
+
+        for k,n in enumerate(range(6,14,2)):
+            cij = self.combine_Cparam(ci[k],cj[k],self.cij_combination_rule)
 
             # Calculate the ff energy for the atom pair.
             bij = None
