@@ -1989,6 +1989,9 @@ class FitFFParameters:
         self.qm_fit_energy = np.array(qm_fit_energy)
 
 
+        if self.component == 5 and self.functional_form != 'lennard-jones':
+            self.constrain_ab_positive = False
+
         # Use scipy.optimize to perform a least-squares fitting:
         # Initial paramaters are given by p0, and the weighted least squares
         # fitting procedure is given in a subroutine below. Weights here are
@@ -2338,7 +2341,8 @@ class FitFFParameters:
         dlsq_error = np.sum(dlsq_error,axis=-1)
 
         if self.fit_bii and self.harmonic_constraints:
-            harmonic_error, dharmonic_error = self.calc_harmonic_constraint_error(params)
+            k = np.max(1e-5,1e-8 * np.abs(np.min(self.qm_energy[6])))
+            harmonic_error, dharmonic_error = self.calc_harmonic_constraint_error(params,k)
             lsq_error += harmonic_error
             dlsq_error += dharmonic_error
 

@@ -369,7 +369,7 @@ class Drudes:
 
 
 ####################################################################################################    
-    def find_drude_positions(self,itermax=100,thresh=1e-8):
+    def find_drude_positions(self,itermax=500,thresh=1e-8):
     #def find_drude_positions(self,itermax=100,thresh=1e-5):
         '''Use a conjugate gradient method to find lowest-energy positions for drude oscillators.
 
