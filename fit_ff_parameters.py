@@ -1711,6 +1711,7 @@ class FitFFParameters:
                         #self.all_exponents,
                         exponents,
                         self.thole_param, 
+                        self.thole_param, 
                         self.slater_correction,
                         #self.electrostatic_damping_type,
                         self.induction_damping_type,
