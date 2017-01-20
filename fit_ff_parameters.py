@@ -263,7 +263,8 @@ class FitFFParameters:
         # Determine whether or not to fit induction exponents separately from
         # exponents that control the remainder of the FF energy
         self.separate_induction_exponents = False
-        # Set the induction damping type
+        # Set the intra and inter-molecular induction damping types
+        self.thole_damping_type = 'thole_linear'
         self.induction_damping_type = 'Tang-Toennies'
 
         # When fitting parameters, choose whether or not to fit
@@ -1714,6 +1715,7 @@ class FitFFParameters:
                         self.thole_param, 
                         self.slater_correction,
                         #self.electrostatic_damping_type,
+                        self.thole_damping_type,
                         self.induction_damping_type,
                         self.damp_charges_only)
             self.edrude_ind, self.edrude_dhf = d.get_induction_and_dhf_drude_energy()
@@ -3459,6 +3461,7 @@ class FitFFParameters:
                     self.thole_param, 
                     self.slater_correction,
                     #self.electrostatic_damping_type,
+                    self.thole_damping_type,
                     self.induction_damping_type,
                     self.damp_charges_only)
 

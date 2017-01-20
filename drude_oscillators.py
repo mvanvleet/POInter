@@ -91,6 +91,7 @@ class Drudes:
                    exponents,
                    screenlength1=2.0, screenlength2=2.0, 
                    slater_correction=True,
+                   intra_damping_type='thole_tinker',
                    inter_damping_type='None',
                    damp_charges_only=True
                    ):
@@ -169,6 +170,7 @@ class Drudes:
         self.polarizability1 = self.qshell1**2/self.avg_springcon
         self.polarizability2 = self.qshell2**2/self.avg_springcon
 
+        self.intra_damping_type = intra_damping_type
         self.inter_damping_type = inter_damping_type
         self.damp_charges_only = damp_charges_only
         if self.inter_damping_type == 'Tang-Toennies':
@@ -309,8 +311,8 @@ class Drudes:
 
         Returns
         -------
-        Nothing, though self.Mon[1,2]Multipoles classes are updated to reflect
-        new shell positions.
+        None, though class variables for both intra- and inter-molecular
+        damping functions are set up.
 
         '''
         # First, try and unpack serialized damping functions
@@ -323,12 +325,14 @@ class Drudes:
                 noslater_tt_del_damp_inter = cloudpickle.load(f)
                 no_damp_inter = cloudpickle.load(f)
                 no_del_damp_inter = cloudpickle.load(f)
-                damp_intra = cloudpickle.load(f)
-                del_damp_intra = cloudpickle.load(f)
+                linear_damp_intra = cloudpickle.load(f)
+                linear_del_damp_intra = cloudpickle.load(f)
+                tinker_damp_intra = cloudpickle.load(f)
+                tinker_del_damp_intra = cloudpickle.load(f)
 
         # If cloudpickle module not available, or data not previously
         # serialized, recreate damping functions.
-        except (ImportError,IOError):
+        except (ImportError,IOError,EOFError):
             # Create numerical subroutines to compute gradients for the Thole
             # and Tang-Toennies damping functions. Note that, for all
             # intramolecular contacts, Thole screening will be used, while all
@@ -356,11 +360,21 @@ class Drudes:
                                     for x in [xij,yij,zij] ]
 
             thole_args = (ai, aj, p, xij, yij, zij)
-            damp_intra = lambdify(thole_args,\
-                                   self.get_thole_damping_factor(*thole_args), modules='numpy')
+
+            thole_style = ('linear',)
+            linear_damp_intra = lambdify(thole_args,\
+                                   self.get_thole_damping_factor(*(thole_args+thole_style)), modules='numpy')
             diff_damp_intra = [ sp.diff(self.get_thole_damping_factor(*thole_args),x)
                                             for x in [xij,yij,zij] ]
-            del_damp_intra = [ lambdify(thole_args, ddamp, modules='numpy')
+            linear_del_damp_intra = [ lambdify(thole_args, ddamp, modules='numpy')
+                                               for ddamp in diff_damp_intra ]
+
+            thole_style = ('tinker',)
+            tinker_damp_intra = lambdify(thole_args,\
+                                   self.get_thole_damping_factor(*(thole_args+thole_style)), modules='numpy')
+            diff_damp_intra = [ sp.diff(self.get_thole_damping_factor(*thole_args),x)
+                                            for x in [xij,yij,zij] ]
+            tinker_del_damp_intra = [ lambdify(thole_args, ddamp, modules='numpy')
                                                for ddamp in diff_damp_intra ]
             try:
                 import cloudpickle
@@ -376,11 +390,22 @@ class Drudes:
                     cloudpickle.dump(slater_tt_del_damp_inter, f)
                     cloudpickle.dump(no_damp_inter, f)
                     cloudpickle.dump(no_del_damp_inter, f)
-                    cloudpickle.dump(damp_intra, f)
-                    cloudpickle.dump(del_damp_intra, f)
+                    cloudpickle.dump(linear_damp_intra, f)
+                    cloudpickle.dump(linear_del_damp_intra, f)
+                    cloudpickle.dump(tinker_damp_intra, f)
+                    cloudpickle.dump(tinker_del_damp_intra, f)
 
 
-        # Set damping functions as class variables
+        # Set appropriate damping functions as class variables
+        if self.intra_damping_type.lower() == 'thole_linear':
+            self.damp_intra = linear_damp_intra
+            self.del_damp_intra = linear_del_damp_intra
+        elif self.intra_damping_type.lower() == 'thole_tinker':
+            self.damp_intra = tinker_damp_intra
+            self.del_damp_intra = tinker_del_damp_intra
+        else:
+            sys.exit('Unknown Intramolecular Damping Type ' + self.intra_damping_type)
+
         if self.inter_damping_type == 'Tang-Toennies':
             if self.slater_correction:
                 self.damp_inter = slater_tt_damp_inter
@@ -392,13 +417,10 @@ class Drudes:
             self.damp_inter = no_damp_inter
             self.del_damp_inter = no_del_damp_inter
         elif self.inter_damping_type == 'Thole':
-            self.damp_inter = damp_intra
-            self.del_damp_inter = del_damp_intra
+            self.damp_inter = self.damp_intra
+            self.del_damp_inter = self.del_damp_intra
         else:
-            sys.exit('Unknown Damping Type ' + inter_damping_type)
-
-        self.damp_intra = damp_intra
-        self.del_damp_intra = del_damp_intra
+            sys.exit('Unknown Intermolecular Damping Type ' + self.inter_damping_type)
 
         return
 ####################################################################################################    
@@ -899,8 +921,8 @@ class Drudes:
                 xj = self.xyz2[:,j,:]
                 dx = xi - xj
                 rij = np.sqrt(np.sum((xi-xj)**2,axis=1))
-                edrude += self.damp_intra(qi,qj,dx[:,0],dx[:,1],dx[:,2])*qi*(-qj)/rij
-                edrude += self.damp_intra(ai,aj,dx[:,0],dx[:,1],dx[:,2])*qi*(-qj)/rij
+                # edrude += self.damp_intra(qi,qj,dx[:,0],dx[:,1],dx[:,2])*qi*(-qj)/rij
+                edrude += self.damp_intra(ai,aj,p,dx[:,0],dx[:,1],dx[:,2])*qi*(-qj)/rij
 
                 xi = self.xyz2[:,i,:]
                 xj = self.shell_xyz2[:,j,:]
@@ -913,7 +935,7 @@ class Drudes:
                 xj = self.xyz2[:,j,:]
                 dx = xi - xj
                 rij = np.sqrt(np.sum((xi-xj)**2,axis=1))
-                edrude += self.damp_intra(ai,aj,dx[:,0],dx[:,1],dx[:,2])*(-qi)*(-qj)/rij
+                edrude += self.damp_intra(ai,aj,p,dx[:,0],dx[:,1],dx[:,2])*(-qi)*(-qj)/rij
 
         # Intermolecular drude energy between monomers 1 and 2
         for i,qi in enumerate(self.qshell1):
@@ -1241,8 +1263,7 @@ class Drudes:
 
 
 ####################################################################################################    
-    #def get_thole_damping_factor(self,qi,qj,xij,yij,zij):
-    def get_thole_damping_factor(self,ai,aj,p,xij,yij,zij):
+    def get_thole_damping_factor(self,ai,aj,p,xij,yij,zij,thole_style='linear'):
         '''Compute the Thole damping factor.
 
         References:
@@ -1270,10 +1291,19 @@ class Drudes:
         '''
         rij = sp.sqrt(xij**2 + yij**2 + zij**2)
 
-        prefactor = 1.0 + p*rij/(2*(ai*aj)**(1.0/6))
-        exponent = p*rij/(ai*aj)**(1.0/6)
-
-        damping_factor = 1.0 - sp.exp(-exponent)*prefactor
+        if thole_style == 'linear':
+            prefactor = 1.0 + p*rij/(2*(ai*aj)**(1.0/6))
+            exponent = p*rij/(ai*aj)**(1.0/6)
+            damping_factor = 1.0 - sp.exp(-exponent)*prefactor
+        elif thole_style == 'tinker':
+            a=p # /(ai*aj)**(1.0/6.0)
+            uij = rij/(ai*aj)**(1.0/6.0)
+            au3 = a*uij**3
+            expau3 = sp.exp(-au3)
+            approx_gamma = expau3*((4.0/9.0) + 2*(1+au3)**2) / (2*(1+ au3)**(7.0/3.0))
+            damping_factor = 1.0-expau3 + uij*a**(1.0/3.0)*approx_gamma
+        else:
+            raise NotImplementedError('Only Linear and Tinker-style Thole damping is currently implemented.')
 
         return damping_factor
 ####################################################################################################    
