@@ -399,7 +399,8 @@ class FitFFParameters:
         # file
         if self.fit_residuals:
             if not self.functional_form == 'lennard-jones':
-                self.fit_bii = True
+                #self.fit_bii = True
+                pass
             self.component = 5
             self.qm_energy[5] = self.qm_energy[6] - ff_energy
             ff_energy += self.fit_component_parameters()
@@ -1592,6 +1593,7 @@ class FitFFParameters:
 
         direction /= np.sqrt((direction ** 2).sum(-1))[..., np.newaxis]
         cos_angle = np.sum(vec*z_axis,axis=1) / np.sqrt((vec ** 2).sum(-1))
+        cos_angle = np.round(cos_angle,decimals=10)
         angle = np.arccos(cos_angle)
         magnitude = np.sqrt((vec ** 2).sum(-1))*np.sin(angle)
 
@@ -1650,6 +1652,7 @@ class FitFFParameters:
         cos_phi = np.sum(vec*z_axis,axis=1)
         cos_phi /= np.sqrt((vec ** 2).sum(-1))
         cos_phi /= np.sqrt((z_axis ** 2).sum(-1))
+        cos_phi = np.round(cos_phi,decimals=10) # fix occassional cos_phi < -1 error that can arise from floating point precision errors
         phi = np.arccos(cos_phi)
 
         return theta, phi
@@ -1992,8 +1995,8 @@ class FitFFParameters:
         self.qm_fit_energy = np.array(qm_fit_energy)
 
 
-        if self.component == 5 and self.functional_form != 'lennard-jones':
-            self.constrain_ab_positive = False
+        ## if self.component == 5 and self.functional_form != 'lennard-jones':
+        ##     self.constrain_ab_positive = False
 
         # Use scipy.optimize to perform a least-squares fitting:
         # Initial paramaters are given by p0, and the weighted least squares
@@ -2010,8 +2013,8 @@ class FitFFParameters:
             # criteria.
             maxiter=5000
 
-            pgtol=1e-15 
-            ftol=1e-17
+            pgtol=1e-19 
+            ftol=1e-19
             ## pgtol=-1e-17 
             ## ftol=1e-17
 
@@ -2532,6 +2535,7 @@ class FitFFParameters:
                 theta2ji = self.angles2[j,i,0]
                 phi2ji = self.angles2[j,i,1]
                 pair = (atom1,atom2)
+
                 # Only stored interactions for each interaction once, so
                 # need to check what order cross terms were stored in
                 if self.get_num_eij.has_key(pair):
@@ -3151,6 +3155,7 @@ class FitFFParameters:
                 f.write('Combination Rules: aij = '+str(self.aij_combination_rule)+'\n')
                 f.write('                   bij = '+str(self.bij_combination_rule)+'\n')
                 f.write('Electrostatic Damping Type: '+str(self.electrostatic_damping_type)+'\n')
+                f.write('Thole Param: '+str(self.thole_param)+'\n')
                 f.write('Fitting weight: eff_mu = '+str(self.eff_mu)+' Ha\n')
                 f.write('                eff_kt = '+str(self.eff_kt)+' Ha\n')
                 f.write('Weighted RMSE cutoff: '+str(self.weighted_rmse_cutoff)+' Ha\n')
@@ -3443,9 +3448,6 @@ class FitFFParameters:
                             for bj in self.induction_exponents2 ] 
                             for bi in self.induction_exponents1 ]
             exponents = np.array(exponents)[:,:,np.newaxis,np.newaxis]
-            ## print self.all_exponents.shape
-            ## print exponents.shape
-            ## sys.exit()
         else:
             exponents = self.all_exponents
 
