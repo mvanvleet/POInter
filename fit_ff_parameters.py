@@ -1160,7 +1160,7 @@ class FitFFParameters:
 
 
 ####################################################################################################    
-    def combine_prefactor(self,ai,aj,bi,bj,bij,combination_rule='geometric'):
+    def combine_prefactor(self,ai,aj,bi,bj,bij,combination_rule='geometric',mode='np'):
         '''Uses combination rule for prefactors (see below) to explicitly
         create Aij cross-terms.
 
@@ -1185,10 +1185,13 @@ class FitFFParameters:
             1 and 2, respectively.
 
         '''
-        if 'geometric' in combination_rule:
+        if combination_rule == 'geometric':
             aij = ai*aj
-        elif combination_rule == 'saptff':
-            aij = ai*aj
+        elif combination_rule in ['saptff','geometric_mean']:
+            if mode == 'sp':
+                aij = sym.sqrt(ai*aj)
+            else:
+                aij = np.sqrt(ai*aj)
         elif combination_rule == 'waldman-hagler5':
             aij = ai*aj*(bij**6/(bi**3*bj**3))
         elif 'arithmetic_mean' in combination_rule:
@@ -2794,7 +2797,7 @@ class FitFFParameters:
             else:
                 aj = params2['A']
 
-        aij = self.combine_prefactor(ai,aj,bi,bj,bij,self.aij_combination_rule)
+        aij = self.combine_prefactor(ai,aj,bi,bj,bij,self.aij_combination_rule,mode='sp')
         if self.functional_form == 'stone':
             # Stone functional form incorporates the pre-factor term in the
             # exponential
