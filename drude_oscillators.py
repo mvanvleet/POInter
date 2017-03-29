@@ -104,8 +104,8 @@ class Drudes:
         # Initialize drude positions slightly off each core center if set to
         # True. Normally has little effect on convergence, but may matter in
         # some cases.
-        #self.initialize_off_center = True
-        self.initialize_off_center = False
+        self.initialize_off_center = True
+        #self.initialize_off_center = False
 
         # Provide cutoffs for when to treat charges and distances as
         # effectively zero:
@@ -169,6 +169,13 @@ class Drudes:
         # Compute polarizabilities from shell charges
         self.polarizability1 = self.qshell1**2/self.avg_springcon
         self.polarizability2 = self.qshell2**2/self.avg_springcon
+
+        # Set non-polarizable atoms to have a default polarizability (this
+        # allows for computation of intermolecular Thole damping factors where
+        # necessary)
+        default_pol = 1.0
+        self.polarizability1[self.polarizability1 == 0] = default_pol
+        self.polarizability2[self.polarizability2 == 0] = default_pol
 
         self.intra_damping_type = intra_damping_type
         self.inter_damping_type = inter_damping_type
@@ -364,7 +371,7 @@ class Drudes:
             thole_style = ('linear',)
             linear_damp_intra = lambdify(thole_args,\
                                    self.get_thole_damping_factor(*(thole_args+thole_style)), modules='numpy')
-            diff_damp_intra = [ sp.diff(self.get_thole_damping_factor(*thole_args),x)
+            diff_damp_intra = [ sp.diff(self.get_thole_damping_factor(*thole_args+ thole_style),x)
                                             for x in [xij,yij,zij] ]
             linear_del_damp_intra = [ lambdify(thole_args, ddamp, modules='numpy')
                                                for ddamp in diff_damp_intra ]
@@ -372,10 +379,12 @@ class Drudes:
             thole_style = ('tinker',)
             tinker_damp_intra = lambdify(thole_args,\
                                    self.get_thole_damping_factor(*(thole_args+thole_style)), modules='numpy')
-            diff_damp_intra = [ sp.diff(self.get_thole_damping_factor(*thole_args),x)
+            diff_damp_intra = [ sp.diff(self.get_thole_damping_factor(*thole_args+thole_style),x)
                                             for x in [xij,yij,zij] ]
+
             tinker_del_damp_intra = [ lambdify(thole_args, ddamp, modules='numpy')
                                                for ddamp in diff_damp_intra ]
+
             try:
                 import cloudpickle
             except ImportError:
@@ -398,9 +407,11 @@ class Drudes:
 
         # Set appropriate damping functions as class variables
         if self.intra_damping_type.lower() == 'thole_linear':
+            print 'Thole damping type set to: linear'
             self.damp_intra = linear_damp_intra
             self.del_damp_intra = linear_del_damp_intra
         elif self.intra_damping_type.lower() == 'thole_tinker':
+            print 'Thole damping type set to: Tinker-style'
             self.damp_intra = tinker_damp_intra
             self.del_damp_intra = tinker_del_damp_intra
         else:
@@ -463,7 +474,7 @@ class Drudes:
 
 
 ####################################################################################################    
-    def find_drude_positions(self,itermax=500,thresh=1e-8):
+    def find_drude_positions(self,itermax=500,thresh=1e-5):
     #def find_drude_positions(self,itermax=100,thresh=1e-5):
         '''Use a conjugate gradient method to find lowest-energy positions for drude oscillators.
 
@@ -488,10 +499,10 @@ class Drudes:
         old_forces1=old_forces2 = 0.0 #values here are placeholders only
         old_search_vec1=old_search_vec2 = 0.0
 
-        print 'Converging drude oscillator positions.',
+        print 'Converging drude oscillator positions:',
 
         while not converged:
-            sys.stdout.write('.')
+            #sys.stdout.write('.')
             sys.stdout.flush()
             if iterno > itermax:
                 error = '''Too many iterations to find drude oscillator positions!
@@ -519,7 +530,8 @@ class Drudes:
             x2 = self.xyz1
             dx = x1 - x2
             forces1 = forces1 - self.springcon1*dx
-            converged1 = np.all(np.abs(forces1) < thresh)
+            #converged1 = np.all(np.abs(forces1) < thresh)
+            converged1 = np.mean(np.abs(forces1)) < thresh
 
             if not converged1:
                 lambda1, search_vec1 = \
@@ -542,7 +554,8 @@ class Drudes:
             x2 = self.xyz2
             dx = x1 - x2
             forces2 = forces2 - self.springcon2*dx
-            converged2 = np.all(np.abs(forces2) < thresh)
+            #converged2 = np.all(np.abs(forces2) < thresh)
+            converged2 = np.mean(np.abs(forces2)) < thresh
 
             if not converged2:
                 lambda2, search_vec2 = \
@@ -555,6 +568,44 @@ class Drudes:
 
             iterno += 1
             converged = converged1 and converged2
+
+            dxyz1 = np.sqrt(np.sum((self.shell_xyz1 - self.xyz1)**2,axis=2))
+            dxyz2 = np.sqrt(np.sum((self.shell_xyz2 - self.xyz2)**2,axis=2))
+            ## sys.stdout.write(str((dxyz1 > 2).nonzero()))
+            ## sys.stdout.write(str((dxyz2 > 2).nonzero()))
+            bad_convergence_points = set( list((dxyz1 > 2).nonzero()[0]) + list((dxyz2 > 2).nonzero()[0]) )
+            #bad_convergence_points = set( (dxyz1 > 2).nonzero()[0] + (dxyz2 > 2).nonzero()[0] )
+            if bad_convergence_points:
+                sys.stdout.write('The following data points drude oscillators with large displacements: ')
+                sys.stdout.write(str(bad_convergence_points))
+            # sys.stdout.write(str(bad_convergence_points))
+            sys.stdout.write('\n')
+
+            template = '{:10s}\t{:16s}\t{:16s}\n'
+            sys.stdout.write(template.format('Iteration','|Max Drude Force|','|Mean Drude Force|'))
+
+            template = '{:10d}\t{:16.8e}\t{:16.8e}\n'
+            max_force1 = np.max(np.abs(forces1))
+            max_force2 = np.max(np.abs(forces2))
+            max_force = np.amax([max_force1,max_force2])
+            mean_force1 = np.mean(np.abs(forces1))
+            mean_force2 = np.mean(np.abs(forces2))
+            mean_force = np.mean([mean_force1,mean_force2])
+            sys.stdout.write(template.format(iterno,max_force,mean_force))
+
+            # sys.stdout.write(str(np.max(dxyz1)))
+            # sys.stdout.write('\t')
+            # sys.stdout.write(str(np.max(dxyz2)))
+            # sys.stdout.write('\t')
+            # sys.stdout.write(str(np.max(np.abs(forces1))))
+            # sys.stdout.write('\t')
+            # sys.stdout.write(str(np.max(np.abs(forces2))))
+            # sys.stdout.write('\n')
+            # sys.stdout.write(str(np.max(np.mean(np.abs(forces1)))))
+            # sys.stdout.write('\t')
+            # sys.stdout.write(str(np.max(np.mean(np.abs(forces2)))))
+            # sys.stdout.write('\n')
+            sys.stdout.flush()
 
         sys.stdout.write('\n')
         if self.verbose:
@@ -744,6 +795,9 @@ class Drudes:
             xvec = x1 - x2
             efield += self.get_efield_from_thole_charge(q1,q2,xvec,a1,a2,p)
 
+        ## print
+        ## print 'efield_intra = ', efield[0]
+
 
         # Second, compute field due to intermolecular permanent charges and
         # drude oscillators:
@@ -766,6 +820,9 @@ class Drudes:
             efield += self.get_efield_from_multipole_charge(j,ishell,
                     Multipoles_j,xvec,bij,a1,a2,p)
 
+            # print 'efield_multipole = ', self.get_efield_from_multipole_charge(j,ishell,
+            #         Multipoles_j,xvec,bij,a1,a2,p)[0]
+
             # Compute shell-core interactions
             q2 = - qshell_j[j]
             x1 = shell_xyz_i[:,ishell]
@@ -773,12 +830,19 @@ class Drudes:
             xvec = x1 - x2
             efield += self.get_efield_from_point_charge(q2,xvec,bij,a1,a2,p)
 
+            # print 'efield_shellcore = ', self.get_efield_from_point_charge(q2,xvec,bij,a1,a2,p)[0]
+
             # Compute shell-shell interactions
             q2 = qshell_j[j]
             if abs(q2) < self.small_q: continue
             x2 = shell_xyz_j[:,j]
             xvec = x1 - x2
             efield += self.get_efield_from_point_charge(q2,xvec,bij,a1,a2,p)
+
+            # print 'efield_shellshell = ', self.get_efield_from_point_charge(q2,xvec,bij,a1,a2,p)[0]
+
+        # print
+        # print 'efield tot = ', efield[0]
 
         return efield
 ####################################################################################################    
@@ -814,6 +878,16 @@ class Drudes:
         # Get total drude oscillator energy
         self.find_drude_positions()
         edrude_total = self.get_drude_energy()
+
+        # print np.sqrt(np.sum(self.shell_xyz1 - self.xyz1,axis=2))
+        # print ((self.shell_xyz1 - self.xyz1)**2)
+        disp1 = (np.sqrt(np.sum((self.shell_xyz1 - self.xyz1)**2,axis=2)))
+        disp2 = (np.sqrt(np.sum((self.shell_xyz2 - self.xyz2)**2,axis=2)))
+        r = (np.sqrt(np.sum((self.xyz2 - self.xyz1)**2,axis=2)))
+        ## for dispij, rij in zip(disp,r):
+        # print 'disp1 disp2 r', disp1[0], disp2[0], r[0]
+        # print 'energy:', edrude_total[0]
+        ## sys.exit()
 
         # Set each monomer's drude charges to zero and get drude energy in
         # order to get 2nd order induction energy
@@ -867,6 +941,7 @@ class Drudes:
                 pi = self.screenlength1[i]
                 pj = self.screenlength1[j]
                 p = self.combine_thole_damping_parameter(pi,pj)
+
 
                 # Shell-shell interactions
                 xi = self.shell_xyz1[:,i,:]
@@ -937,9 +1012,13 @@ class Drudes:
                 rij = np.sqrt(np.sum((xi-xj)**2,axis=1))
                 edrude += self.damp_intra(ai,aj,p,dx[:,0],dx[:,1],dx[:,2])*(-qi)*(-qj)/rij
 
+        # print 'edrudes before intermolecular component', edrude[0]
+
         # Intermolecular drude energy between monomers 1 and 2
         for i,qi in enumerate(self.qshell1):
             for j,qj in enumerate(self.qshell2):
+
+                # print 'shell charges:',i,j,qi,qj
 
                 # Damping parameters
                 bij = self.exponents[i,j]
@@ -948,6 +1027,17 @@ class Drudes:
                 pi = self.screenlength1[i]
                 pj = self.screenlength2[j]
                 p = self.combine_thole_damping_parameter(pi,pj)
+
+                xi = self.shell_xyz1[:,i,:]
+                xj = self.xyz1[:,j,:]
+                dx = xi - xj
+                rij1 = np.sqrt(np.sum((xi-xj)**2,axis=1))
+                xi = self.shell_xyz2[:,i,:]
+                xj = self.xyz2[:,j,:]
+                dx = xi - xj
+                rij2 = np.sqrt(np.sum((xi-xj)**2,axis=1))
+                # print 'ai, aj, rij1, rij2', ai, aj, rij1[0], rij2[0]
+                ## sys.exit()
 
                 # Shell-shell interactions
                 xi = self.shell_xyz1[:,i,:]
@@ -959,6 +1049,7 @@ class Drudes:
                         args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
                     else:
                         args = (bij,dx[:,0],dx[:,1],dx[:,2])
+                    # print 'damp between ', np.min(self.damp_inter(*args)), np.max(self.damp_inter(*args))
                     edrude += self.damp_inter(*args)*qi*qj/rij
 
                 # Core-shell interactions (does not include permanent charges on opposite monomer)
@@ -972,6 +1063,8 @@ class Drudes:
                         args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
                     else:
                         args = (bij,dx[:,0],dx[:,1],dx[:,2])
+                    # print 'damp = ', self.damp_inter(*args)[0]
+                    # print 'damp between ', np.min(self.damp_inter(*args)), np.max(self.damp_inter(*args))
                     edrude += self.damp_inter(*args)*qi*(qcore_j)/rij
 
                 xi = self.xyz1[:,i,:]
@@ -984,7 +1077,13 @@ class Drudes:
                         args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
                     else:
                         args = (bij,dx[:,0],dx[:,1],dx[:,2])
+                    # print 'damp = ', self.damp_inter(*args)[0]
+                    # print 'damp between ', np.min(self.damp_inter(*args)), np.max(self.damp_inter(*args))
                     edrude += self.damp_inter(*args)*(qcore_i)*qj/rij
+                    ## print 'max', np.amax(self.damp_inter(*args))
+                    ## for line in zip(rij, self.damp_inter(*args)):
+                    ##     print line[0], line[1]
+                    ## sys.exit()
 
                 # Core-core interactions
                 xi = self.xyz1[:,i,:]
@@ -998,42 +1097,86 @@ class Drudes:
                         args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
                     else:
                         args = (bij,dx[:,0],dx[:,1],dx[:,2])
+                    # print 'damp between ', np.min(self.damp_inter(*args)), np.max(self.damp_inter(*args))
                     edrude += self.damp_inter(*args)*qcore_i*qcore_j/rij
+                    # print 'damp = ', self.damp_inter(*args)[0]
 
+                # print 'edrudes before multipole calcs', edrude[0]
 
                 # Shell - permanent multipole interactions
                 # Mon1 multipoles with Mon2 drude shells
                 self.Mon1Multipoles.xyz2 = self.shell_xyz2 # Update shell positions in case these have changed
                 self.Mon1Multipoles.update_direction_vectors()
+                if self.inter_damping_type == 'Thole':
+                    args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
+                else:
+                    args = (bij,dx[:,0],dx[:,1],dx[:,2])
+                xi = self.xyz1[:,i,:]
+                xj = self.shell_xyz2[:,j,:]
                 for mi in self.Mon1Multipoles.multipoles1[i].keys():
                     int_type = (mi,'Q00')
-                    edrude += self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
+                    damp = self.damp_inter(*args)
+                    edrude += damp*self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
+
+
+
+                # print 'edrudes; mon1 mult with mon2 drude', edrude[0]
 
                 # Mon2 multipoles with Mon1 drude shells
                 self.Mon2Multipoles.xyz2 = self.shell_xyz1 # Update shell positions in case these have changed
                 self.Mon2Multipoles.update_direction_vectors()
+                xi = self.xyz2[:,i,:]
+                xj = self.shell_xyz1[:,j,:]
+                dx = xi - xj
+                if self.inter_damping_type == 'Thole':
+                    args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
+                else:
+                    args = (bij,dx[:,0],dx[:,1],dx[:,2])
                 for mj in self.Mon2Multipoles.multipoles1[j].keys():
                     int_type = (mj,'Q00')
-                    edrude += self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
+                    damp = self.damp_inter(*args)
+                    edrude += damp*self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
+
+                # print 'edrudes mon2 mult with mon1 drude', edrude[0]
 
                 # Core - permanent multipole interactions
                 # Mon1 multipoles with Mon2 drude core
                 self.Mon1Multipoles.xyz2 = self.xyz2 # Update shell positions in case these have changed
                 self.Mon1Multipoles.update_direction_vectors()
+                xi = self.xyz1[:,i,:]
+                xj = self.xyz2[:,j,:]
+                dx = xi - xj
+                if self.inter_damping_type == 'Thole':
+                    args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
+                else:
+                    args = (bij,dx[:,0],dx[:,1],dx[:,2])
                 for mi in self.Mon1Multipoles.multipoles1[i].keys():
                     int_type = (mi,'Q00')
-                    edrude -= self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
+                    damp = self.damp_inter(*args)
+                    edrude -= damp*self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
                     # Minus sign accounts for the fact that all core
                     # charges have the opposite sign of the shell charges
+
+                # print 'edrudes mon1 mult with mon2 core', edrude[0]
 
                 # Mon2 multipoles with Mon1 drude core
                 self.Mon2Multipoles.xyz2 = self.xyz1 # Update shell positions in case these have changed
                 self.Mon2Multipoles.update_direction_vectors()
+                xj = self.xyz2[:,j,:]
+                xi = self.xyz1[:,i,:]
+                dx = xi - xj
+                if self.inter_damping_type == 'Thole':
+                    args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
+                else:
+                    args = (bij,dx[:,0],dx[:,1],dx[:,2])
                 for mj in self.Mon2Multipoles.multipoles1[j].keys():
                     int_type = (mj,'Q00')
-                    edrude -= self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
+                    damp = self.damp_inter(*args)
+                    edrude -= damp*self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
                     # Minus sign accounts for the fact that all core
                     # charges have the opposite sign of the shell charges
+
+                # print 'edrudes mon2 with mon1 core', edrude[0]
 
         # Include spring energy:
         # Spring Energy Monomer1
@@ -1042,6 +1185,8 @@ class Drudes:
         # Spring Energy Monomer 2
         kdr2 = np.sum(self.springcon2*(self.xyz2 - self.shell_xyz2)**2, axis=-1)
         edrude += 0.5*np.sum(kdr2, axis=-1)
+
+        # print 'edrudes final', edrude[0]
 
         return edrude
 ####################################################################################################    
@@ -1101,6 +1246,7 @@ class Drudes:
         qt = np.zeros_like(r)
         delqt = np.zeros(r.shape + (3,))
         efield = np.zeros_like(delqt)
+
         for mj,qj in Multipoles_j.multipoles1[j].items():
             if abs(qj) < smallq:
                 continue
@@ -1115,10 +1261,11 @@ class Drudes:
             if self.damp_charges_only and mj.lstrip('Q') != '00':
                 damp = np.ones_like(qt)
                 ddamp = np.zeros_like(delqt)
-            elif not self.damp_charges_only:
-                if self.inter_damping_type in ['Tang-Toennies', 'Thole']:
-                    raise NotImplementedError,\
-                    'TT damping for higher order multipole moments not yet implemented!'
+            ## elif not self.damp_charges_only:
+            ##     if self.inter_damping_type in ['Tang-Toennies', 'Thole']:
+            ##         raise NotImplementedError,\
+            ##         'TT damping for higher order multipole moments not yet implemented!'
+            #FIXME: Put in correct damping functions for higher order multipole moments
             else:
                 if self.inter_damping_type == 'Thole':
                     args = (ai,aj,p,xij,yij,zij)
@@ -1127,7 +1274,7 @@ class Drudes:
                 damp = np.where( r > self.small_r, self.damp_inter(*args), 0)
 
                 ddamp = np.array([ np.where( r > self.small_r, 
-                                                 - dcharge(*args), 0) 
+                                                 dcharge(*args), 0) 
                                             for dcharge in self.del_damp_inter ])
                 ddamp = np.swapaxes(ddamp,0,1) # Do we need this?
 
@@ -1137,6 +1284,7 @@ class Drudes:
 
             # Compute efield
             efield += -1*( damp[:,np.newaxis]*delqt + ddamp*qt[:,np.newaxis])
+            # efield += -1*( damp[:,np.newaxis]*delqt + ddamp*qt[:,np.newaxis])
 
 
         efield *= self.multipole_efield_scale_factor
@@ -1156,7 +1304,7 @@ class Drudes:
         and r is the norm of xvec.
         yielding an electric field
              E = - del V
-               = - ( del(f_damp)*q/r + f_damp*q/r^3*xvec )
+               = - ( del(f_damp)*q/r - f_damp*q/r^3*xvec )
         Note that, in the limit where q or r are sufficiently small, E = 0.
 
         Parameters
@@ -1196,6 +1344,8 @@ class Drudes:
 
         damp = np.where( r > self.small_r, self.damp_inter(*args)/r**3, 0)
         efield = damp[:,np.newaxis]*q*xvec
+        ## efield = - damp[:,np.newaxis]*q*xvec
+
 
         ddamp = np.array([ np.where( r > self.small_r, \
                                          - dcharge(*args)*q/r,\
@@ -1217,7 +1367,7 @@ class Drudes:
         and r is the norm of xvec.
         yielding an electric field
              E = - del V
-               = - ( del(f_damp)*q/r + f_damp*q/r^3*xvec )
+               = - ( del(f_damp)*q/r - f_damp*q/r^3*xvec )
         Note that, in the limit where q or r are sufficiently small, E = 0.
 
         Parameters
@@ -1262,6 +1412,53 @@ class Drudes:
 ####################################################################################################    
 
 
+## ####################################################################################################    
+##     def get_thole_damping_factor(self,ai,aj,p,xij,yij,zij,thole_style='linear'):
+##         '''Compute the Thole damping factor.
+## 
+##         References:
+##         (1) Yu, K.; McDaniel, J. G.; Schmidt, J. R. J. Phys. Chem. B 2011, 115, 10054-10063.
+## 
+##         Parameters
+##         ----------
+##         ai : Symbol
+##             Polarizability of the first drude oscillator.
+##         aj : Symbol
+##             Polarizability of the second drude oscillator.
+##         p  : Symbol
+##             Dimensionless Thole screening parameter.
+##         xij : Symbol
+##             Cartesian distance between oscillators in the x-direction.
+##         yij : Symbol
+##             Cartesian distance between oscillators in the y-direction.
+##         zij : Symbol
+##             Cartesian distance between oscillators in the z-direction.
+## 
+##         Returns
+##         -------
+##         damping_factor : Sympy expression
+## 
+##         '''
+##         rij = sp.sqrt(xij**2 + yij**2 + zij**2)
+## 
+##         if thole_style == 'linear':
+##             prefactor = 1.0 + p*rij/(2*(ai*aj)**(1.0/6))
+##             exponent = p*rij/(ai*aj)**(1.0/6)
+##             damping_factor = 1.0 - sp.exp(-exponent)*prefactor
+##         elif thole_style == 'tinker':
+##             a=p 
+##             uij = rij/(ai*aj)**(1.0/6.0)
+##             au3 = a*uij**3
+##             expau3 = sp.exp(-au3)
+##             approx_gamma = expau3*((4.0/9.0) + 2*(1+au3)**2) / (2*(1+ au3)**(7.0/3.0))
+##             damping_factor = 1.0-expau3 + uij*a**(1.0/3.0)*approx_gamma
+##         else:
+##             raise NotImplementedError('Only Linear and Tinker-style Thole damping is currently implemented.')
+## 
+##         return damping_factor
+## ####################################################################################################    
+
+
 ####################################################################################################    
     def get_thole_damping_factor(self,ai,aj,p,xij,yij,zij,thole_style='linear'):
         '''Compute the Thole damping factor.
@@ -1296,12 +1493,70 @@ class Drudes:
             exponent = p*rij/(ai*aj)**(1.0/6)
             damping_factor = 1.0 - sp.exp(-exponent)*prefactor
         elif thole_style == 'tinker':
-            a=p # /(ai*aj)**(1.0/6.0)
+            a=p 
             uij = rij/(ai*aj)**(1.0/6.0)
             au3 = a*uij**3
             expau3 = sp.exp(-au3)
             approx_gamma = expau3*((4.0/9.0) + 2*(1+au3)**2) / (2*(1+ au3)**(7.0/3.0))
             damping_factor = 1.0-expau3 + uij*a**(1.0/3.0)*approx_gamma
+        else:
+            raise NotImplementedError('Only Linear and Tinker-style Thole damping is currently implemented.')
+
+        return damping_factor
+####################################################################################################    
+
+
+####################################################################################################    
+    def get_thole_multipole_damp(self,ai,aj,p,xij,yij,zij,m=0,thole_style='linear'):
+        '''Compute the Thole damping factor.
+
+        References:
+        (1) Yu, K.; McDaniel, J. G.; Schmidt, J. R. J. Phys. Chem. B 2011, 115, 10054-10063.
+
+        Parameters
+        ----------
+        ai : Symbol
+            Polarizability of the first drude oscillator.
+        aj : Symbol
+            Polarizability of the second drude oscillator.
+        p  : Symbol
+            Dimensionless Thole screening parameter.
+        xij : Symbol
+            Cartesian distance between oscillators in the x-direction.
+        yij : Symbol
+            Cartesian distance between oscillators in the y-direction.
+        zij : Symbol
+            Cartesian distance between oscillators in the z-direction.
+
+        Returns
+        -------
+        damping_factor : Sympy expression
+
+        '''
+        rij = np.sqrt(xij**2 + yij**2 + zij**2)
+
+        if thole_style == 'linear':
+            if m==0:
+                prefactor = 1.0 + p*rij/(2*(ai*aj)**(1.0/6))
+                exponent = p*rij/(ai*aj)**(1.0/6)
+                damping_factor = 1.0 - np.exp(-exponent)*prefactor
+            else:
+                raise NotImplementedError('Linear-style Thole damping only implemented up to rank 0')
+        elif thole_style == 'tinker':
+            a=p 
+            uij = rij/(ai*aj)**(1.0/6.0)
+            au3 = a*uij**3
+            expau3 = np.exp(-au3)
+            if m==0:
+                approx_gamma = expau3*((4.0/9.0) + 2*(1+au3)**2) / (2*(1+ au3)**(7.0/3.0))
+                damping_factor = 1.0-expau3 + uij*a**(1.0/3.0)*approx_gamma
+            elif m==1:
+                damping_factor = 1 - expau3
+            elif m==2:
+                #FIXME: This formula is incorrect, and needs to be correctly derived for the m == 2 case
+                damping_factor = 1 - expau3
+            else:
+                raise NotImplementedError('Tinker-style Thole damping only implemented up to rank 1')
         else:
             raise NotImplementedError('Only Linear and Tinker-style Thole damping is currently implemented.')
 

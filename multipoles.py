@@ -361,9 +361,44 @@ class Multipoles:
         np.seterr(all="warn")
 
         try:
-            assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
+            transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
+            assert transformation_success
         except AssertionError:
-            print np.max(trans_local_xyz-trans_global_xyz)
+            mon = 1 if np.array_equal(local_xyz,self.local_coords1) else 2
+            print
+            print 'Warning!!! Global-to-local rotation of multipole moments failed for monomer {} .'.format(mon)
+
+            success = np.all(np.isclose(trans_local_xyz,trans_global_xyz,atol=1e-5),axis=(1,2))
+            ngeometries = success.size
+            nsuccesses = np.sum(success)
+            template = 'Of {} configurations, {} local axis transformation(s) succeeded, and {} failed.'
+            print template.format(ngeometries,nsuccesses,ngeometries - nsuccesses)
+
+            print 'This error commonly arises from neglecting one of the following conditions:'
+            print '1. For each monomer, all internal coordinates in the .sapt file MUST be self-consistent.'
+            print '2. For each monomer, internal coordinates must be self-consistent between the .mom file and .sapt files.'
+
+            # If we're only dealing with point charges, the local-axis
+            # transformation doesn't actually matter, and we can continue
+            # running POInter. Otherwise, raise an error.
+            multipoles = self.multipoles1 if mon == 1 else self.multipoles2
+            point_charges_only = True
+            for m in multipoles:
+                if m.keys() == 'Q00':
+                    continue
+                for k,v in m.items():
+                    if k != 'Q00' and v != 0:
+                        point_charges_only = False
+                        break
+                if not point_charges_only:
+                    break
+            if point_charges_only:
+                print 'However since only point charges are listed for this monomer, the axis transformation in unimportant, and POInter will continue running.'
+                print 
+            else:
+                print 'Fix these errors and re-run POInter.'
+                print 
+                raise
 
         return rotation_matrix
 ####################################################################################################    
@@ -1009,7 +1044,6 @@ class Multipoles:
                 # exponents.
                 bij = bij[0][0]
                 damp = get_damping_factor(None,rij,bij,tt_order,self.slater_correction)
-                print np.amin(damp), np.amax(damp)
         else:
             damp = 1
 

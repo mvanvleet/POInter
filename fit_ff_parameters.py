@@ -2013,10 +2013,10 @@ class FitFFParameters:
             # criteria.
             maxiter=5000
 
-            pgtol=1e-19 
-            ftol=1e-19
-            ## pgtol=-1e-17 
-            ## ftol=1e-17
+            # pgtol=1e-19 
+            # ftol=1e-19
+            pgtol=-1e-17 
+            ftol=1e-17
 
             # *Finally*, we're ready to perform the least-squares fitting
             # procedure:
