@@ -879,16 +879,6 @@ class Drudes:
         self.find_drude_positions()
         edrude_total = self.get_drude_energy()
 
-        # print np.sqrt(np.sum(self.shell_xyz1 - self.xyz1,axis=2))
-        # print ((self.shell_xyz1 - self.xyz1)**2)
-        disp1 = (np.sqrt(np.sum((self.shell_xyz1 - self.xyz1)**2,axis=2)))
-        disp2 = (np.sqrt(np.sum((self.shell_xyz2 - self.xyz2)**2,axis=2)))
-        r = (np.sqrt(np.sum((self.xyz2 - self.xyz1)**2,axis=2)))
-        ## for dispij, rij in zip(disp,r):
-        # print 'disp1 disp2 r', disp1[0], disp2[0], r[0]
-        # print 'energy:', edrude_total[0]
-        ## sys.exit()
-
         # Set each monomer's drude charges to zero and get drude energy in
         # order to get 2nd order induction energy
         self.qshell2 = np.zeros_like(self.qshell2)
@@ -1029,7 +1019,7 @@ class Drudes:
                 p = self.combine_thole_damping_parameter(pi,pj)
 
                 xi = self.shell_xyz1[:,i,:]
-                xj = self.xyz1[:,j,:]
+                xj = self.xyz2[:,j,:]
                 dx = xi - xj
                 rij1 = np.sqrt(np.sum((xi-xj)**2,axis=1))
                 xi = self.shell_xyz2[:,i,:]
@@ -1125,8 +1115,8 @@ class Drudes:
                 # Mon2 multipoles with Mon1 drude shells
                 self.Mon2Multipoles.xyz2 = self.shell_xyz1 # Update shell positions in case these have changed
                 self.Mon2Multipoles.update_direction_vectors()
-                xi = self.xyz2[:,i,:]
-                xj = self.shell_xyz1[:,j,:]
+                xi = self.shell_xyz1[:,i,:]
+                xj = self.xyz2[:,j,:]
                 dx = xi - xj
                 if self.inter_damping_type == 'Thole':
                     args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
@@ -1162,8 +1152,8 @@ class Drudes:
                 # Mon2 multipoles with Mon1 drude core
                 self.Mon2Multipoles.xyz2 = self.xyz1 # Update shell positions in case these have changed
                 self.Mon2Multipoles.update_direction_vectors()
-                xj = self.xyz2[:,j,:]
                 xi = self.xyz1[:,i,:]
+                xj = self.xyz2[:,j,:]
                 dx = xi - xj
                 if self.inter_damping_type == 'Thole':
                     args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
