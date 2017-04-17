@@ -1018,17 +1018,6 @@ class Drudes:
                 pj = self.screenlength2[j]
                 p = self.combine_thole_damping_parameter(pi,pj)
 
-                xi = self.shell_xyz1[:,i,:]
-                xj = self.xyz2[:,j,:]
-                dx = xi - xj
-                rij1 = np.sqrt(np.sum((xi-xj)**2,axis=1))
-                xi = self.shell_xyz2[:,i,:]
-                xj = self.xyz2[:,j,:]
-                dx = xi - xj
-                rij2 = np.sqrt(np.sum((xi-xj)**2,axis=1))
-                # print 'ai, aj, rij1, rij2', ai, aj, rij1[0], rij2[0]
-                ## sys.exit()
-
                 # Shell-shell interactions
                 xi = self.shell_xyz1[:,i,:]
                 xj = self.shell_xyz2[:,j,:]
