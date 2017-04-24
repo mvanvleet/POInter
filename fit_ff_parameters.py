@@ -2197,13 +2197,18 @@ class FitFFParameters:
             RMS error (weighted according to cutoff) for the fit
 
         '''
-        if cutoff == None:
-            weight = np.ones_like(ff_energy)
-        else:
-            i_eint = 6
-            weight = (self.qm_energy[i_eint] < cutoff) # Boolean mask to exclude high-energy points
+        ## if cutoff == None:
+        ##     weight = np.ones_like(ff_energy)
+        ## else:
+        ##     i_eint = 6
+        ##     weight = (self.qm_energy[i_eint] < cutoff) # Boolean mask to exclude high-energy points
+        i_eint = 6
+        diff = self.qm_energy[self.component] - ff_energy
+        if cutoff:
+            diff = diff(np.where(self.qm_energy[i_eint] < cutoff))
 
-        rms_error = np.sqrt(np.average(weight*(self.qm_energy[self.component] - ff_energy)**2))
+        # rms_error = np.sqrt(np.average(weight*(self.qm_energy[self.component] - ff_energy)**2))
+        rms_error = np.sqrt(np.average(diff**2))
 
         return rms_error
 ####################################################################################################    
