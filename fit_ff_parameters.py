@@ -413,7 +413,7 @@ class FitFFParameters:
         self.write_energy_file(ff_energy)
         self.rms_error = self.calc_rmse(ff_energy)
         self.weighted_rms_error = self.calc_rmse(ff_energy, cutoff=self.weighted_rmse_cutoff)
-        self.weighted_absolute_error = self.calc_mae(ff_energy, cutoff=self.weighted_rmse_cutoff)
+        self.weighted_absolute_error = self.calc_mse(ff_energy, cutoff=self.weighted_rmse_cutoff)
         self.write_output_file()
 
         print
@@ -1818,6 +1818,7 @@ class FitFFParameters:
             # Add one additional parameter per atomtype to account for fitting
             # both sigma and epsilon 
             self.n_isotropic_params += 1
+            self.fit_bii = True
 
         # Determine total number of parameters to be fit
         if self.fit_universal_k:
@@ -1840,8 +1841,9 @@ class FitFFParameters:
             abound = (-1e1,1e1)
             bbound = (1e-2,1e2)
         elif self.functional_form == 'lennard-jones':
-            abound = (1e0,1e2)
-            bbound = (1e-2,1e3)
+            #abound = (1e0,1e2)
+            abound = (1e-2,1e2) # sigma, bohr
+            bbound = (1e-2,1e0) # epsilon, mH
         else:
             raise NotImplementedError
         #aanisobound = (-1e1,1e1)
@@ -1870,29 +1872,17 @@ class FitFFParameters:
             msets_iso = [ len(self.exponents[a]) for a in self.fit_isotropic_atomtypes ]
             msets_aniso = [ len(self.exponents[a]) for a in self.anisotropic_atomtypes ]
         if self.fit_bii:
-            ## bounds_iso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
-            ##                 m*[bbound])
-            ##                 for n,m,j in zip(nsets_iso,msets_iso,self.fit_isotropic_atomtypes) ]
             bounds_iso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
                             m*[bbound])
                             for n,m,j in zip(nsets_iso,msets_iso,self.fit_isotropic_atomtypes) ]
 
-            ## bounds_aniso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
-            ##                 [aanisobound for i in v] +
-            ##                 m*[bbound] )
-            ##                 for n,m,k,v in zip(nsets_aniso,
-            ##                                 msets_aniso,
-            ##                                 self.anisotropic_symmetries.keys(), 
-            ##                                 self.anisotropic_symmetries.values()) \
-            ##                 if k in self.fit_anisotropic_atomtypes ]
             bounds_aniso =[ n*([abound for i in range(self.n_isotropic_params-1)] + 
                             [aanisobound for i in self.anisotropic_symmetries[a]] +
                             m*[bbound] )
                             for n,m,a in zip(nsets_aniso,
                                             msets_aniso,
                                             self.fit_anisotropic_atomtypes)]
-                                            #self.anisotropic_symmetries.values()) \
-                            # if a in self.fit_anisotropic_atomtypes ]
+
             # Store locations of b parameters for later use in harmonic
             # constraint error
             pos_bparams = [ n*([0 for i in range(self.n_isotropic_params-1)] + 
@@ -2058,7 +2048,7 @@ class FitFFParameters:
                             -np.array(qm_fit_energy) + ff_fit_energy
 
         self.rms_error = self.calc_rmse(ff_energy)
-        self.weighted_absolute_error = self.calc_mae(ff_energy, cutoff=self.weighted_rmse_cutoff)
+        self.weighted_absolute_error = self.calc_mse(ff_energy, cutoff=self.weighted_rmse_cutoff)
         self.weighted_rms_error = self.calc_rmse(ff_energy, cutoff=self.weighted_rmse_cutoff)
         self.lsq_error = self.calc_leastsq_ff_fit(popt)[0]
 
@@ -2189,7 +2179,7 @@ class FitFFParameters:
         cutoff : None or float
             If None, returns the RMS error for the entire data set. If given
             as a float, data points with total interaction energies (QM)
-            larger than cutoff are excluded from the fit.
+            larger than cutoff are excluded from the error measure.
 
         Returns
         -------
@@ -2197,15 +2187,10 @@ class FitFFParameters:
             RMS error (weighted according to cutoff) for the fit
 
         '''
-        ## if cutoff == None:
-        ##     weight = np.ones_like(ff_energy)
-        ## else:
-        ##     i_eint = 6
-        ##     weight = (self.qm_energy[i_eint] < cutoff) # Boolean mask to exclude high-energy points
         i_eint = 6
         diff = self.qm_energy[self.component] - ff_energy
-        if cutoff:
-            diff = diff(np.where(self.qm_energy[i_eint] < cutoff))
+        if cutoff != None:
+            diff = diff[np.where(self.qm_energy[i_eint] < cutoff)]
 
         # rms_error = np.sqrt(np.average(weight*(self.qm_energy[self.component] - ff_energy)**2))
         rms_error = np.sqrt(np.average(diff**2))
@@ -2215,8 +2200,8 @@ class FitFFParameters:
 
 
 ####################################################################################################    
-    def calc_mae(self,ff_energy,cutoff=None):
-        '''Compute the mean absolute error (MAE) between the QM and FF
+    def calc_mse(self,ff_energy,cutoff=None):
+        '''Compute the mean signed error (MSE) between the QM and FF
         energies.
 
         Paramters
@@ -2224,25 +2209,24 @@ class FitFFParameters:
         ff_energy : 1darray
             Force field energy for a given component
         cutoff : None or float
-            If None, returns the RMS error for the entire data set. If given
+            If None, returns the MS error for the entire data set. If given
             as a float, data points with total interaction energies (QM)
-            larger than cutoff are excluded from the fit.
+            larger than cutoff are excluded from the error measure.
 
         Returns
         -------
-        mae : float
-            MAE (weighted according to cutoff) for the fit
+        mse : float
+            MSE (weighted according to cutoff) for the fit
 
         '''
 
-        if cutoff == None:
-            weight = np.ones_like(ff_energy)
-        else:
-            i_eint = 6
-            weight = (self.qm_energy[i_eint] < cutoff) # Boolean mask to exclude high-energy points
+        i_eint = 6
+        diff = self.qm_energy[self.component] - ff_energy
+        if cutoff != None:
+            diff = diff[np.where(self.qm_energy[i_eint] < cutoff)]
 
-        mae = np.average(weight*(self.qm_energy[self.component] - ff_energy))
-        return mae
+        mse = np.average(diff)
+        return mse
 ####################################################################################################    
 
 
@@ -2877,7 +2861,7 @@ class FitFFParameters:
         self.write_energy_file(dispersion_energy)
         self.rms_error = self.calc_rmse(dispersion_energy)
         self.weighted_rms_error = self.calc_rmse(dispersion_energy, cutoff=self.weighted_rmse_cutoff)
-        self.weighted_absolute_error = self.calc_mae(dispersion_energy, cutoff=self.weighted_rmse_cutoff)
+        self.weighted_absolute_error = self.calc_mse(dispersion_energy, cutoff=self.weighted_rmse_cutoff)
         self.lsq_error = 0.0
 
         self.write_output_file()
@@ -3263,7 +3247,8 @@ class FitFFParameters:
                 f.write('Residual Error Parameters:\n')
                 f.write('    Functional Form = \n')
                 if self.functional_form == 'lennard-jones':
-                    f.write('\tE(LJ)_ij = A/r^12 - B/r^6\n')
+                    f.write('\tA=sigma,B=epsilon\n')
+                    f.write('\tE(LJ)_ij = 4*B*((A/r)^12 - (A/r)^6)\n')
                 elif self.slater_correction:
                     f.write('\tE(residual)_ij = - A*K2(rij)*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
                 else:
@@ -3372,7 +3357,7 @@ class FitFFParameters:
             f.write(template.format(self.energy_component_names[self.component], self.rms_error))
             template = '{:s} Weighted RMS Error: '+'{:.5e}'+'\n'
             f.write(template.format(self.energy_component_names[self.component], self.weighted_rms_error))
-            template = '{:s} Weighted Absolute Error: '+'{:.5e}'+'\n'
+            template = '{:s} Weighted Mean Signed Error: '+'{:.5e}'+'\n'
             f.write(template.format(self.energy_component_names[self.component],
                 self.weighted_absolute_error))
             template = '{:s} Weighted Least-Squares Error: '+'{:.5e}'+'\n'
@@ -3679,7 +3664,7 @@ if __name__=='__main__':
     parser.add_argument("-b","--scalebi", help=scalebihelp,\
             action="store_true", default=False)
     parser.add_argument("--aij", help=aijhelp,\
-            type=str, default='geometric_mean')
+            type=str, default='geometric')
     parser.add_argument("--bij", help=bijhelp,\
             type=str, default='geometric_mean')
 
