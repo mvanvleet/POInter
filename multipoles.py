@@ -350,6 +350,7 @@ class Multipoles:
             # All vectors in molecule are parallel; hopefully molecules are
             # now aligned
             assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
+            #assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-1)
             return rotation_matrix
 
         # Align an orthogonal vector to v1; once this vector is aligned, the
@@ -362,8 +363,10 @@ class Multipoles:
 
         try:
             transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
+            #transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e1,rtol=1e1)
             assert transformation_success
         except AssertionError:
+            # print trans_local_xyz - trans_global_xyz
             mon = 1 if np.array_equal(local_xyz,self.local_coords1) else 2
             print
             print 'Warning!!! Global-to-local rotation of multipole moments failed for monomer {} .'.format(mon)
