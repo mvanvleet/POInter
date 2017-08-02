@@ -392,8 +392,6 @@ class FitFFParameters:
             self.default_n_isotropic_params += 1
         else:
             ff_energy += self.fit_component_parameters()
-        ## else:
-        ##     ff_energy += self.calc_dispersion_energy()
 
         # If fitting the residual errors, compute this energy and output to
         # file
@@ -578,7 +576,6 @@ class FitFFParameters:
         print 'Reading in information from the parameter file.'
 
         # Initialize arrays for A,B,C parameters as well as charges
-        #self.Aparams = [ [] for i in xrange(self.ncomponents) ] # 4 components; exch, elst, ind, dhf
         self.Aparams = [ ] # 4 components; exch, elst, ind, dhf
         self.exponents = {}
         self.induction_exponents = {}
@@ -590,8 +587,6 @@ class FitFFParameters:
         self.drude_charges2 = []
         self.springcon1 = []
         self.springcon2 = []
-        ## self.induction_exponents1 = []
-        ## self.induction_exponents2 = []
 
         # Initialize list of all hard constraints
         self.fixed_atomtypes = {}
@@ -658,7 +653,6 @@ class FitFFParameters:
             line = f.readline().split()
             count = 0
             while line[0] != 'INDUCTION':
-            #while count < nfixed:
                 atom = line[0].split('(')[0]
                 assert self.fixed_atomtypes.has_key(atom), error
                 count = self.fixed_atomtypes[atom]
@@ -687,7 +681,6 @@ class FitFFParameters:
                 atom = line[0].split('(')[0]
                 assert self.fixed_atomtypes.has_key(atom), error
                 count = self.fixed_atomtypes[atom]
-                #assert self.fixed_atomtypes[atom] == count, error
                 self.Aparams[count][3].append([float(i) for i in line[1:]])
                 line = f.readline().split()
             if self.fit_dispersion:
@@ -903,12 +896,8 @@ class FitFFParameters:
                     self.springcon2.append([float(j) for j in line[1:4]])
                 else:
                     self.springcon2.append([3*float(line[1])])
-                ## if self.induction_damping_type == 'Tang-Toennies' \
-                ##         and self.separate_induction_exponents:
-                ##     self.induction_exponents2.append(float(line[4]))
             self.drude_charges2 = np.array(self.drude_charges2)
             self.springcon2 = np.array(self.springcon2)
-            ## self.induction_exponents2 = np.array(self.induction_exponents2)
 
             # Read parameters for the weighting function, namely eff_mu and eff_kt
             # charges):
@@ -1760,22 +1749,10 @@ class FitFFParameters:
             raise NotImplementedError
 
         if self.drude_method != 'read' or self.drude_file != 'edrudes.dat':
-            #with open(self.drude_file,'w') as f:
             with open('edrudes.dat','w') as f:
                 f.write('Edrude_ind \t\t Edrude_dhf\n')
                 for i in xrange(len(self.edrude_ind)):
                     f.write('{:16.8f} {:16.8f}\n'.format(self.edrude_ind[i],self.edrude_dhf[i]))
-            ## with open('drude_positions.dat','w') as f:
-            ##     f.write('Shell_xyz1 positions\n')
-            ##     #for line in d.shell_xyz1-d.xyz1:
-            ##     for line in d.shell_xyz1:
-            ##         np.savetxt(f,line)
-            ##         f.write('---\n')
-            ##     f.write('Shell_xyz2 positions\n')
-            ##     #for line in d.shell_xyz2-d.xyz2:
-            ##     for line in d.shell_xyz2:
-            ##         np.savetxt(f,line)
-            ##         f.write('---\n')
 
         return self.edrude_ind, self.edrude_dhf
 ####################################################################################################    
@@ -1835,7 +1812,6 @@ class FitFFParameters:
             if self.component == 4:
                 abound = (0.7,1.3)
                 bbound = (0.7,1.3)
-                #bbound = (1e-2,1e2)
 
         elif self.functional_form == 'stone':
             abound = (-1e1,1e1)
@@ -1846,7 +1822,6 @@ class FitFFParameters:
             bbound = (1e-2,1e0) # epsilon, mH
         else:
             raise NotImplementedError
-        #aanisobound = (-1e1,1e1)
         aanisobound = (-1e0,1e0)
         # For isotropic atomtypes, constrain all parameters to be positive
         # For anisotropic atomtypes, only constrain first (and possibly
@@ -1987,10 +1962,6 @@ class FitFFParameters:
         qm_fit_energy = self.subtract_hard_constraint_energy()
         self.qm_fit_energy = np.array(qm_fit_energy)
 
-
-        ## if self.component == 5 and self.functional_form != 'lennard-jones':
-        ##     self.constrain_ab_positive = False
-
         # Use scipy.optimize to perform a least-squares fitting:
         # Initial paramaters are given by p0, and the weighted least squares
         # fitting procedure is given in a subroutine below. Weights here are
@@ -2094,10 +2065,6 @@ class FitFFParameters:
         # Initialize fit array
         qm_fit_energy = np.copy(self.qm_energy[self.component])
 
-        ## if self.component == 4 and not self.fit_dispersion: 
-        ##     # No hard constraints to subtract for dispersion
-        ##     return qm_fit_energy
-
         # For electrostatics, subtract off multipole energies
         if self.component == 1:
             if self.read_multipole_energy_from_orient:
@@ -2192,7 +2159,6 @@ class FitFFParameters:
         if cutoff != None:
             diff = diff[np.where(self.qm_energy[i_eint] < cutoff)]
 
-        # rms_error = np.sqrt(np.average(weight*(self.qm_energy[self.component] - ff_energy)**2))
         rms_error = np.sqrt(np.average(diff**2))
 
         return rms_error
@@ -2263,7 +2229,6 @@ class FitFFParameters:
         '''
 
         # Update self.atom_params array
-        #self.output_params(params)
         mapped_params = self.map_params(params)
         # TODO: I probably should call map_params here (or replace map_params
         # entirely with output_params
@@ -2277,7 +2242,6 @@ class FitFFParameters:
         shift = self.n_isotropic_params
         dharmonic_error = [ 0 for _ in params]
         for i,atom in enumerate(self.fit_isotropic_atomtypes + self.fit_anisotropic_atomtypes):
-        #for atom in self.fit_isotropic_atomtypes + self.fit_anisotropic_atomtypes:
             for ib in xrange(len(self.exponents[atom])):
                 if self.component == 2 and self.separate_induction_exponents:
                     b = mapped_params[i][ib]['Bind']
@@ -2543,7 +2507,6 @@ class FitFFParameters:
                 else:
                     num_eij, subexp = self.get_num_eij[pair]
                     energy = self.evaluate_num_f(args,subexp,num_eij)
-
                 
                 # Fix return values of int(0) to be appropriately shaped np
                 # arrays
@@ -2636,7 +2599,6 @@ class FitFFParameters:
 
                 mapped_params[iatom] = param_dic
                 continue
-
 
             # Partition parameters into short-range parameters for each
             # atomtype. A/K parameters are listed first, followed by Aniso

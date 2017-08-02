@@ -98,9 +98,6 @@ def get_lj_energy(rij,eij,sij):
     1/r^12 - 1/r^6 functional form.
     '''
 
-    ## return aij/rij**12 - bij/rij**6
-    #return 4*eij*((sij/rij)**12 - (sij/rij)**6)
-    #mH = 1000
     mH = 0.001
     return 4*mH*eij*((sij/rij)**12 - (sij/rij)**6)
 ####################################################################################################    
@@ -217,10 +214,6 @@ def get_approximate_slater_overlap_polynomial(bij,rij,normalized=False):
         # The unnormalized Slater density is of the form p(r) = exp(-br)
         return ((bij*rij)**2)/3 + bij*rij + 1
 
-    ## if normalized:
-    ##     return ((bij*rij)**2)/3 + bij*rij + 1
-    ## else:
-    ##     return rij**2/bij + 3*rij/bij**2 + 3/bij**3
 ####################################################################################################    
 
 

@@ -592,19 +592,6 @@ class Drudes:
             mean_force2 = np.mean(np.abs(forces2))
             mean_force = np.mean([mean_force1,mean_force2])
             sys.stdout.write(template.format(iterno,max_force,mean_force))
-
-            # sys.stdout.write(str(np.max(dxyz1)))
-            # sys.stdout.write('\t')
-            # sys.stdout.write(str(np.max(dxyz2)))
-            # sys.stdout.write('\t')
-            # sys.stdout.write(str(np.max(np.abs(forces1))))
-            # sys.stdout.write('\t')
-            # sys.stdout.write(str(np.max(np.abs(forces2))))
-            # sys.stdout.write('\n')
-            # sys.stdout.write(str(np.max(np.mean(np.abs(forces1)))))
-            # sys.stdout.write('\t')
-            # sys.stdout.write(str(np.max(np.mean(np.abs(forces2)))))
-            # sys.stdout.write('\n')
             sys.stdout.flush()
 
         sys.stdout.write('\n')
@@ -795,10 +782,6 @@ class Drudes:
             xvec = x1 - x2
             efield += self.get_efield_from_thole_charge(q1,q2,xvec,a1,a2,p)
 
-        ## print
-        ## print 'efield_intra = ', efield[0]
-
-
         # Second, compute field due to intermolecular permanent charges and
         # drude oscillators:
         multipole_efield = np.zeros_like(efield)
@@ -820,9 +803,6 @@ class Drudes:
             efield += self.get_efield_from_multipole_charge(j,ishell,
                     Multipoles_j,xvec,bij,a1,a2,p)
 
-            # print 'efield_multipole = ', self.get_efield_from_multipole_charge(j,ishell,
-            #         Multipoles_j,xvec,bij,a1,a2,p)[0]
-
             # Compute shell-core interactions
             q2 = - qshell_j[j]
             x1 = shell_xyz_i[:,ishell]
@@ -830,19 +810,12 @@ class Drudes:
             xvec = x1 - x2
             efield += self.get_efield_from_point_charge(q2,xvec,bij,a1,a2,p)
 
-            # print 'efield_shellcore = ', self.get_efield_from_point_charge(q2,xvec,bij,a1,a2,p)[0]
-
             # Compute shell-shell interactions
             q2 = qshell_j[j]
             if abs(q2) < self.small_q: continue
             x2 = shell_xyz_j[:,j]
             xvec = x1 - x2
             efield += self.get_efield_from_point_charge(q2,xvec,bij,a1,a2,p)
-
-            # print 'efield_shellshell = ', self.get_efield_from_point_charge(q2,xvec,bij,a1,a2,p)[0]
-
-        # print
-        # print 'efield tot = ', efield[0]
 
         return efield
 ####################################################################################################    
@@ -1002,8 +975,6 @@ class Drudes:
                 rij = np.sqrt(np.sum((xi-xj)**2,axis=1))
                 edrude += self.damp_intra(ai,aj,p,dx[:,0],dx[:,1],dx[:,2])*(-qi)*(-qj)/rij
 
-        # print 'edrudes before intermolecular component', edrude[0]
-
         # Intermolecular drude energy between monomers 1 and 2
         for i,qi in enumerate(self.qshell1):
             for j,qj in enumerate(self.qshell2):
@@ -1028,7 +999,6 @@ class Drudes:
                         args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
                     else:
                         args = (bij,dx[:,0],dx[:,1],dx[:,2])
-                    # print 'damp between ', np.min(self.damp_inter(*args)), np.max(self.damp_inter(*args))
                     edrude += self.damp_inter(*args)*qi*qj/rij
 
                 # Core-shell interactions (does not include permanent charges on opposite monomer)
@@ -1042,8 +1012,6 @@ class Drudes:
                         args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
                     else:
                         args = (bij,dx[:,0],dx[:,1],dx[:,2])
-                    # print 'damp = ', self.damp_inter(*args)[0]
-                    # print 'damp between ', np.min(self.damp_inter(*args)), np.max(self.damp_inter(*args))
                     edrude += self.damp_inter(*args)*qi*(qcore_j)/rij
 
                 xi = self.xyz1[:,i,:]
@@ -1056,13 +1024,7 @@ class Drudes:
                         args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
                     else:
                         args = (bij,dx[:,0],dx[:,1],dx[:,2])
-                    # print 'damp = ', self.damp_inter(*args)[0]
-                    # print 'damp between ', np.min(self.damp_inter(*args)), np.max(self.damp_inter(*args))
                     edrude += self.damp_inter(*args)*(qcore_i)*qj/rij
-                    ## print 'max', np.amax(self.damp_inter(*args))
-                    ## for line in zip(rij, self.damp_inter(*args)):
-                    ##     print line[0], line[1]
-                    ## sys.exit()
 
                 # Core-core interactions
                 xi = self.xyz1[:,i,:]
@@ -1076,11 +1038,7 @@ class Drudes:
                         args = (ai,aj,p,dx[:,0],dx[:,1],dx[:,2])
                     else:
                         args = (bij,dx[:,0],dx[:,1],dx[:,2])
-                    # print 'damp between ', np.min(self.damp_inter(*args)), np.max(self.damp_inter(*args))
                     edrude += self.damp_inter(*args)*qcore_i*qcore_j/rij
-                    # print 'damp = ', self.damp_inter(*args)[0]
-
-                # print 'edrudes before multipole calcs', edrude[0]
 
                 # Shell - permanent multipole interactions
                 # Mon1 multipoles with Mon2 drude shells
@@ -1097,10 +1055,6 @@ class Drudes:
                     damp = self.damp_inter(*args)
                     edrude += damp*self.Mon1Multipoles.get_multipole_energy(i,j,int_type)
 
-
-
-                # print 'edrudes; mon1 mult with mon2 drude', edrude[0]
-
                 # Mon2 multipoles with Mon1 drude shells
                 self.Mon2Multipoles.xyz2 = self.shell_xyz1 # Update shell positions in case these have changed
                 self.Mon2Multipoles.update_direction_vectors()
@@ -1115,8 +1069,6 @@ class Drudes:
                     int_type = (mj,'Q00')
                     damp = self.damp_inter(*args)
                     edrude += damp*self.Mon2Multipoles.get_multipole_energy(j,i,int_type)
-
-                # print 'edrudes mon2 mult with mon1 drude', edrude[0]
 
                 # Core - permanent multipole interactions
                 # Mon1 multipoles with Mon2 drude core
@@ -1136,8 +1088,6 @@ class Drudes:
                     # Minus sign accounts for the fact that all core
                     # charges have the opposite sign of the shell charges
 
-                # print 'edrudes mon1 mult with mon2 core', edrude[0]
-
                 # Mon2 multipoles with Mon1 drude core
                 self.Mon2Multipoles.xyz2 = self.xyz1 # Update shell positions in case these have changed
                 self.Mon2Multipoles.update_direction_vectors()
@@ -1155,8 +1105,6 @@ class Drudes:
                     # Minus sign accounts for the fact that all core
                     # charges have the opposite sign of the shell charges
 
-                # print 'edrudes mon2 with mon1 core', edrude[0]
-
         # Include spring energy:
         # Spring Energy Monomer1
         kdr2 = np.sum(self.springcon1*(self.xyz1 - self.shell_xyz1)**2, axis=-1)
@@ -1164,8 +1112,6 @@ class Drudes:
         # Spring Energy Monomer 2
         kdr2 = np.sum(self.springcon2*(self.xyz2 - self.shell_xyz2)**2, axis=-1)
         edrude += 0.5*np.sum(kdr2, axis=-1)
-
-        # print 'edrudes final', edrude[0]
 
         return edrude
 ####################################################################################################    
@@ -1263,7 +1209,6 @@ class Drudes:
 
             # Compute efield
             efield += -1*( damp[:,np.newaxis]*delqt + ddamp*qt[:,np.newaxis])
-            # efield += -1*( damp[:,np.newaxis]*delqt + ddamp*qt[:,np.newaxis])
 
 
         efield *= self.multipole_efield_scale_factor
@@ -1323,8 +1268,6 @@ class Drudes:
 
         damp = np.where( r > self.small_r, self.damp_inter(*args)/r**3, 0)
         efield = damp[:,np.newaxis]*q*xvec
-        ## efield = - damp[:,np.newaxis]*q*xvec
-
 
         ddamp = np.array([ np.where( r > self.small_r, \
                                          - dcharge(*args)*q/r,\
@@ -1389,53 +1332,6 @@ class Drudes:
 
         return efield
 ####################################################################################################    
-
-
-## ####################################################################################################    
-##     def get_thole_damping_factor(self,ai,aj,p,xij,yij,zij,thole_style='linear'):
-##         '''Compute the Thole damping factor.
-## 
-##         References:
-##         (1) Yu, K.; McDaniel, J. G.; Schmidt, J. R. J. Phys. Chem. B 2011, 115, 10054-10063.
-## 
-##         Parameters
-##         ----------
-##         ai : Symbol
-##             Polarizability of the first drude oscillator.
-##         aj : Symbol
-##             Polarizability of the second drude oscillator.
-##         p  : Symbol
-##             Dimensionless Thole screening parameter.
-##         xij : Symbol
-##             Cartesian distance between oscillators in the x-direction.
-##         yij : Symbol
-##             Cartesian distance between oscillators in the y-direction.
-##         zij : Symbol
-##             Cartesian distance between oscillators in the z-direction.
-## 
-##         Returns
-##         -------
-##         damping_factor : Sympy expression
-## 
-##         '''
-##         rij = sp.sqrt(xij**2 + yij**2 + zij**2)
-## 
-##         if thole_style == 'linear':
-##             prefactor = 1.0 + p*rij/(2*(ai*aj)**(1.0/6))
-##             exponent = p*rij/(ai*aj)**(1.0/6)
-##             damping_factor = 1.0 - sp.exp(-exponent)*prefactor
-##         elif thole_style == 'tinker':
-##             a=p 
-##             uij = rij/(ai*aj)**(1.0/6.0)
-##             au3 = a*uij**3
-##             expau3 = sp.exp(-au3)
-##             approx_gamma = expau3*((4.0/9.0) + 2*(1+au3)**2) / (2*(1+ au3)**(7.0/3.0))
-##             damping_factor = 1.0-expau3 + uij*a**(1.0/3.0)*approx_gamma
-##         else:
-##             raise NotImplementedError('Only Linear and Tinker-style Thole damping is currently implemented.')
-## 
-##         return damping_factor
-## ####################################################################################################    
 
 
 ####################################################################################################    
