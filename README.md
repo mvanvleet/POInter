@@ -39,5 +39,10 @@ To run properly, POInter requires the following python packages:
 * Sympy
 * [Cloudpickle](https://github.com/cloudpipe/cloudpickle) (optional, but speeds up multipole calculations)
 
+Downloads
+---------
+POInter is free software and is protected under a Creative Commons license. While we're still in beta development,
+we kindly appreciate new users filling out the following two-minute survey about how they intend to use the code:
 
+https://goo.gl/forms/sYnJ4iRKQfb1Jnm93
 
