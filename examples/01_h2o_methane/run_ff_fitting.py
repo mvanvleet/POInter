@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from force_field_fitting.fit_ff_parameters import FitFFParameters
+from pointer.fit_ff_parameters import FitFFParameters
 
 sapt_file='h2o_methane.sapt'
 param_file='h2o_methane.param'

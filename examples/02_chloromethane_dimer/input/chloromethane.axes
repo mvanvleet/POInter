@@ -1,0 +1,7 @@
+Chloromethane
+Cl c3v     y10 y20
+
+Axes
+ATOM#   AXIS (z or x)   Atomic Indices defining vector (either 2 or more integers)
+1 z 1 0
+

@@ -13,7 +13,7 @@ import os
 import subprocess
 
 # POInter specific modules
-from force_field_fitting.fit_ff_parameters import FitFFParameters
+from pointer.fit_ff_parameters import FitFFParameters
 
 ###########################################################################
 ####################### Global Variables ##################################

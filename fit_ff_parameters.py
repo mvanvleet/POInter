@@ -127,7 +127,7 @@ class FitFFParameters:
 
         # Set combination rules for pre-factors and exponents. Options for
         # each are as follows:
-        #   aij: 'saptff', 'waldman-hagler5', 'geometric_mean' (same as #   saptff)
+        #   aij: 'saptff', 'waldman-hagler5', 'geometric', 'geometric_mean' (same as saptff)
         #   bij: 'saptff', 'waldman-hagler5', 'geometric_mean', 'arithmetic_mean'
         #   cij: 'geometric'
         self.aij_combination_rule = aij_combination_rule
