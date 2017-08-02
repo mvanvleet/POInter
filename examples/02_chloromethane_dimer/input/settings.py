@@ -46,8 +46,8 @@ thole_param                =    0.33
 fit_dispersion             =    'anisotropic'
 
 
-# If set to true, fits a final A parameter to errors in the total
-# energy, in an effort to reduce systematic errors in the total energy
+# Residual error Settings: If set to true, fits a final A parameter to errors in the total
+# energy in an effort to reduce systematic errors in the total energy
 fit_residuals              =    False
 
 ##########################################################################
@@ -58,10 +58,12 @@ fit_residuals              =    False
 ##########################################################################
 ##################### Functional Form Settings ###########################
 ##########################################################################
-# radial potentials; see Stone's book for more details.
-# Options are 'slater', 'stone', 'born-mayer', or 'lennard-jones'
+# Radial functional forms f(r); see Stone's book for more details.
+# Options are 'slater', 'stone', 'born-mayer', 'born-mayer-sisa', or 'lennard-jones'
 functional_form           =    'slater'
 
+# Combination rule settings: Select combination rules for each A prefactors, B
+# exponents, and C dispersion coefficients. Options are as follows:
 #   aij: 'saptff', 'waldman-hagler5', 'geometric' 
 #   bij: 'saptff', 'waldman-hagler5', 'geometric_mean', 'arithmetic_mean'
 #   cij: 'geometric'
