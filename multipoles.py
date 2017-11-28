@@ -344,7 +344,7 @@ class Multipoles:
             v2b = trans_global_xyz[:,i] - trans_global_xyz[:,0]
             v3 = np.cross(v1,v1b)
             v4 = np.cross(v2,v2b)
-            if not np.array_equal(v3,np.zeros_like(v3)):
+            if not np.allclose(v3,np.zeros_like(v3),atol=1e-8):
                 break
         else:
             # All vectors in molecule are parallel; hopefully molecules are
@@ -380,6 +380,7 @@ class Multipoles:
             print 'This error commonly arises from neglecting one of the following conditions:'
             print '1. For each monomer, all internal coordinates in the .sapt file MUST be self-consistent.'
             print '2. For each monomer, internal coordinates must be self-consistent between the .mom file and .sapt files.'
+
 
             # If we're only dealing with point charges, the local-axis
             # transformation doesn't actually matter, and we can continue
