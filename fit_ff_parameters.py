@@ -1271,7 +1271,8 @@ class FitFFParameters:
         bi_equal_bj = (bi - bj < tol)
         bij = self.combine_exponent(bi,bj,self.bij_combination_rule,mode='sp')
 
-        if self.component in [1,2,3] and self.include_slater_charge_penetration:
+        #if self.component in [1,2,3] and self.include_slater_charge_penetration:
+        if self.component in [1] and self.include_slater_charge_penetration:
             # Compute the radial pre-factor based on the coulomb integral
             # between Slater orbitals. Currently this coulomb integral is used to
             # evaluate electrostatic and inductive charge penetration.
