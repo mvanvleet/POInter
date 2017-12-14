@@ -1268,7 +1268,7 @@ class FitFFParameters:
             configuration) for the radial correction.
 
         '''
-        bi_equal_bj = (bi - bj < tol)
+        bi_equal_bj = (abs(bi - bj) < tol)
         bij = self.combine_exponent(bi,bj,self.bij_combination_rule,mode='sp')
 
         #if self.component in [1,2,3] and self.include_slater_charge_penetration:
