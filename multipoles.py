@@ -767,22 +767,23 @@ class Multipoles:
             args = (r,exa,eya,eza,exb,eyb,ezb,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
             reduced_args = (xa,ya,za,cxx,cxy,cxz,cyx,cyy,cyz,czx,czy,czz)
 
-            delT = [ lambdify( reduced_args, sp.diff(v(*args), ia), modules='numpy') 
+            delT = [ lambdify( reduced_args, sp.diff(v(*args), ia), modules='numexpr') 
                         for ia in (xa,ya,za) ]
             self.delT[k] = delT
 
         print 'Finished initializing derivatives for multipole moments.'
 
-        # If cloudpickle module available, save derivatives to file
+        # If dill module available, save derivatives to file
         try:
-            import cloudpickle
+            import dill
+            dill.settings['recurse'] = True
             print 'Saving multipoles to file:'
             print self.fpik
             with open(self.fpik,'wb') as f:
-                cloudpickle.dump(self.delT, f)
+                dill.dump(self.delT, f)
 
         except ImportError:
-            print 'For computational efficiency, download the cloudpickle module in order to serialize derivatives of multipole moments.'
+            print 'For computational efficiency, download the dill module in order to serialize derivatives of multipole moments.'
             pass
 
         return
@@ -909,9 +910,10 @@ class Multipoles:
         if not self.delT:
             # Try and read in interaction tensors from file
             try:
-                import cloudpickle
+                import dill
+                dill.settings['recurse'] = True
                 with open(self.fpik,'rb') as f:
-                    self.delT = cloudpickle.load(f)
+                    self.delT = dill.load(f)
                 if self.verbose:
                     print 'Read in multipole derivatives from the following file:'
                     print self.fpik
