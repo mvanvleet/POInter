@@ -2304,7 +2304,7 @@ class FitFFParameters:
         dlsq_error = np.sum(dlsq_error,axis=-1)
 
         if self.fit_bii and self.harmonic_constraints:
-            k = np.max(1e-5,1e-8 * np.abs(np.min(self.qm_energy[6])))
+            k = np.max([1e-5,1e-8 * np.abs(np.min(self.qm_energy[6]))])
             harmonic_error, dharmonic_error = self.calc_harmonic_constraint_error(params,k)
             lsq_error += harmonic_error
             dlsq_error += dharmonic_error

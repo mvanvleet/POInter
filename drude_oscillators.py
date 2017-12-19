@@ -309,7 +309,7 @@ class Drudes:
 ####################################################################################################    
     def get_damping_functions(self):
         '''Creates numerical functions and derivatives for the various damping
-        functions that can be utilized in this module, and (if cloudpickle is
+        functions that can be utilized in this module, and (if dill is
         available) stores them for later reference.
 
         Parameters
@@ -324,20 +324,24 @@ class Drudes:
         '''
         # First, try and unpack serialized damping functions
         try:
-            import cloudpickle
+            #import dill
+            import dill 
+            import pickle
+            dill.settings['recurse'] = True
+            print 'loaded dill functionality'
             with open(self.fpik,'rb') as f:
-                slater_tt_damp_inter = cloudpickle.load(f)
-                slater_tt_del_damp_inter = cloudpickle.load(f)
-                noslater_tt_damp_inter = cloudpickle.load(f)
-                noslater_tt_del_damp_inter = cloudpickle.load(f)
-                no_damp_inter = cloudpickle.load(f)
-                no_del_damp_inter = cloudpickle.load(f)
-                linear_damp_intra = cloudpickle.load(f)
-                linear_del_damp_intra = cloudpickle.load(f)
-                tinker_damp_intra = cloudpickle.load(f)
-                tinker_del_damp_intra = cloudpickle.load(f)
+                slater_tt_damp_inter = dill.load(f)
+                slater_tt_del_damp_inter = dill.load(f)
+                noslater_tt_damp_inter = dill.load(f)
+                noslater_tt_del_damp_inter = dill.load(f)
+                no_damp_inter = dill.load(f)
+                no_del_damp_inter = dill.load(f)
+                linear_damp_intra = dill.load(f)
+                linear_del_damp_intra = dill.load(f)
+                tinker_damp_intra = dill.load(f)
+                tinker_del_damp_intra = dill.load(f)
 
-        # If cloudpickle module not available, or data not previously
+        # If dill module not available, or data not previously
         # serialized, recreate damping functions.
         except (ImportError,IOError,EOFError):
             # Create numerical subroutines to compute gradients for the Thole
@@ -348,19 +352,19 @@ class Drudes:
             bij, ai, aj, p, xij, yij, zij = sp.symbols("bij ai aj p xij yij zij")
             noslater_tt_damp_inter = lambdify((bij,xij,yij,zij),\
                                     self.get_tt_damping_factor(bij,xij,yij,zij,
-                                        slater_correction=False), modules='numpy')
+                                        slater_correction=False), modules='numexpr')
             noslater_tt_del_damp_inter = [ lambdify((bij,xij,yij,zij),\
                                          sp.diff(self.get_tt_damping_factor(bij,xij,yij,zij,
                                              slater_correction=False),x),\
-                                         modules='numpy') \
+                                         modules='numexpr') \
                                     for x in [xij,yij,zij] ]
             slater_tt_damp_inter = lambdify((bij,xij,yij,zij),\
                                     self.get_tt_damping_factor(bij,xij,yij,zij,
-                                        slater_correction=True), modules='numpy')
+                                        slater_correction=True), modules='numexpr')
             slater_tt_del_damp_inter = [ lambdify((bij,xij,yij,zij),\
                                          sp.diff(self.get_tt_damping_factor(bij,xij,yij,zij,
                                              slater_correction=True),x),\
-                                         modules='numpy') \
+                                         modules='numexpr') \
                                     for x in [xij,yij,zij] ]
             no_damp_inter = lambda bij, xij, yij, zij : 1
             no_del_damp_inter = [ lambda bij, xij, yij, zij : 0
@@ -370,39 +374,43 @@ class Drudes:
 
             thole_style = ('linear',)
             linear_damp_intra = lambdify(thole_args,\
-                                   self.get_thole_damping_factor(*(thole_args+thole_style)), modules='numpy')
+                                   self.get_thole_damping_factor(*(thole_args+thole_style)), modules='numexpr')
             diff_damp_intra = [ sp.diff(self.get_thole_damping_factor(*thole_args+ thole_style),x)
                                             for x in [xij,yij,zij] ]
-            linear_del_damp_intra = [ lambdify(thole_args, ddamp, modules='numpy')
+            linear_del_damp_intra = [ lambdify(thole_args, ddamp, modules='numexpr')
                                                for ddamp in diff_damp_intra ]
 
             thole_style = ('tinker',)
             tinker_damp_intra = lambdify(thole_args,\
-                                   self.get_thole_damping_factor(*(thole_args+thole_style)), modules='numpy')
+                                   self.get_thole_damping_factor(*(thole_args+thole_style)), modules='numexpr')
             diff_damp_intra = [ sp.diff(self.get_thole_damping_factor(*thole_args+thole_style),x)
                                             for x in [xij,yij,zij] ]
 
-            tinker_del_damp_intra = [ lambdify(thole_args, ddamp, modules='numpy')
+            tinker_del_damp_intra = [ lambdify(thole_args, ddamp, modules='numexpr')
                                                for ddamp in diff_damp_intra ]
 
             try:
-                import cloudpickle
+                #import dill
+                import dill
+                import pickle
+                dill.settings['recurse'] = True
             except ImportError:
                 pass
             else:
                 with open(self.fpik,'wb') as f:
                     print 'Saving numerical subroutines for damping functions to file:'
                     print self.fpik
-                    cloudpickle.dump(noslater_tt_damp_inter, f)
-                    cloudpickle.dump(noslater_tt_del_damp_inter, f)
-                    cloudpickle.dump(slater_tt_damp_inter, f)
-                    cloudpickle.dump(slater_tt_del_damp_inter, f)
-                    cloudpickle.dump(no_damp_inter, f)
-                    cloudpickle.dump(no_del_damp_inter, f)
-                    cloudpickle.dump(linear_damp_intra, f)
-                    cloudpickle.dump(linear_del_damp_intra, f)
-                    cloudpickle.dump(tinker_damp_intra, f)
-                    cloudpickle.dump(tinker_del_damp_intra, f)
+
+                    dill.dump(noslater_tt_damp_inter, f)
+                    dill.dump(noslater_tt_del_damp_inter, f)
+                    dill.dump(slater_tt_damp_inter, f)
+                    dill.dump(slater_tt_del_damp_inter, f)
+                    dill.dump(no_damp_inter, f)
+                    dill.dump(no_del_damp_inter, f)
+                    dill.dump(linear_damp_intra, f)
+                    dill.dump(linear_del_damp_intra, f)
+                    dill.dump(tinker_damp_intra, f)
+                    dill.dump(tinker_del_damp_intra, f)
 
 
         # Set appropriate damping functions as class variables
