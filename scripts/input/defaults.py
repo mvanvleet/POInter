@@ -14,6 +14,8 @@ electrostatic_damping_type          =  'None'
 include_slater_charge_penetration   =  False
 induction_damping_type              =  'Thole'
 exact_radial_correction             =  False
+drude_method                        =  'read'
+#drude_method                        =  'multipole-gradient'
 
 # Unless you know what you're doing, the following settings should only be
 # changed by developers:

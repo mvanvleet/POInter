@@ -143,6 +143,7 @@ def create_param_file(mon1,mon2,input_sapt, constraints, cn_coeffs,
             f.write('exact_radial_correction    True\n')
         f.write('thole_damping_type {}\n'.format(settings.thole_damping_type))
         f.write('induction_damping_type {}\n'.format(defaults.induction_damping_type))
+        f.write('drude_method {}\n'.format(defaults.drude_method))
         f.write('thole_param            {:8.6f}\n'.format(thole_param))
         f.write('\n')
 
@@ -444,8 +445,8 @@ def get_dispersion_coeffs(molecule):
 
     dispersion_coeffs = {}
     for line in lines:
-        if not line:
-            continue
+        if not line or line[0].startswith('#'):
+            continue #ignore blank lines and comments
         atom = line[0] 
         if atom == 'C6' or atom[0:2] == '--':
             # Ignore any header lines
@@ -539,7 +540,7 @@ subprocess.call(['cp',multipoles_dir + mon1 + multipoles_suffix,'.'])
 subprocess.call(['cp',multipoles_dir + mon2 + multipoles_suffix,'.'])
 
 # Run the Force Field Fitting Program for each of the parameter files listed
-fitfiles = ['edrudes','exchange','electrostatics','induction','dhf','dispersion','total_energy']
+fitfiles = ['exchange','electrostatics','induction','dhf','dispersion','total_energy']
 if settings.fit_residuals:
     fitfiles += ['residual_energy']
 coeffs_fitfile = settings.file_prefix + 'coeffs' + settings.file_suffix + '.out'
