@@ -194,6 +194,17 @@ class FitFFParameters:
         self.ignorecase = False
 
         # ----------------------------------------------------------------------
+        # Monomer Geometry Variables; options for how to treat monomer
+        # flexibility
+        # ----------------------------------------------------------------------
+
+        # Define whether each monomer is rigid, i.e. whether each monomer in
+        # the .sapt file has the same geometry as in the .mom file. Currently
+        # this choice effects how the multipolar energy is calculated.
+        self.rigid_monomers = True
+
+
+        # ----------------------------------------------------------------------
         # Paramter Optimization Variables; controls weighting functions,
         # paramter defaults, and constraints (both hard and soft)
         # ----------------------------------------------------------------------
@@ -360,7 +371,7 @@ class FitFFParameters:
         # energy components and output results to output files:
         ff_energy = np.zeros_like(self.qm_energy[6])
 
-        #self.perform_tests()
+        self.perform_tests()
 
         # Fit exchange pre-factors (and potentially exponents, depending on
         # value of self.fit_bii)
@@ -1019,7 +1030,7 @@ class FitFFParameters:
 
         # Print out summary of initialized parameters to the user
         print '############################################################'
-        print '          Force Field Fitting Program Start'
+        print '                     Welcome to POInter!                    '
         print '############################################################'
         print 'The program has located the following '+str(len(self.atomtypes))+\
                 ' atomtypes, '
@@ -2073,8 +2084,10 @@ class FitFFParameters:
                 error = 'Damping type needs to be None for consistency with the Orient program.'
                 assert self.electrostatic_damping_type == 'None', error
             else:
-                m = Multipoles(self.xyz1,self.xyz2,
+                m = Multipoles(self.mon1,self.mon2,
+                               self.xyz1,self.xyz2,
                                self.multipole_file1,self.multipole_file2,
+                               self.axes1,self.axes2,
                                self.all_exponents,self.slater_correction,
                                self.electrostatic_damping_type,self.damp_charges_only)
                 multipole_energy = m.get_multipole_electrostatic_energy()
@@ -3368,11 +3381,25 @@ class FitFFParameters:
         '''
 
         #return
-        ## m = Multipoles(self.xyz1,self.xyz2,
-        ##                self.multipole_file1,self.multipole_file2,
-        ##                self.all_exponents,self.slater_correction,
-        ##                self.electrostatic_damping_type,self.damp_charges_only)
-        ## m.get_multipole_electrostatic_energy()
+        self.mon1 = self.multipole_file1.split('_')[0]
+        self.mon2 = self.multipole_file2.split('_')[0]
+        m = Multipoles(self.mon1,self.mon2,
+                       self.xyz1,self.xyz2,
+                       self.multipole_file1,self.multipole_file2,
+                       self.axes1,self.axes2,
+                       self.all_exponents,self.slater_correction,
+                       self.electrostatic_damping_type,self.damp_charges_only,
+                       self.rigid_monomers,
+                       )
+        m.get_multipole_electrostatic_energy()
+        multipole_energy = m.get_multipole_electrostatic_energy()
+        self.component = 1
+        with open('multipoles.dat','w') as f:
+            f.write('# Eelst \t\t Emultipole \n')
+            for q, m in zip(self.qm_energy[self.component],multipole_energy):
+                f.write('{:16.8f} {:16.8f}\n'.format(q,m))
+
+        exit()
 
         # Fit electrostatic, induction, and dhf pre-factors
         # energy components and output results to output files:

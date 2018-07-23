@@ -8,6 +8,7 @@ from sympy.utilities import lambdify
 
 # Local Packages
 from functional_forms import get_damping_factor
+import rotations
 # Numpy error message settings
 #np.seterr(all='raise')
 
@@ -69,24 +70,33 @@ class Multipoles:
 
     '''
     
-    def __init__(self, xyz1, xyz2, 
+    def __init__(self, 
+                   mon1, mon2,
+                   xyz1, xyz2, 
                    multipole_file1, multipole_file2, 
+                   axes1, axes2,
                    exponents=np.array([]),
                    slater_correction=True,
                    damping_type='None',
                    damp_charges_only=True,
+                   rigid_monomers=True,
                    ):
 
         '''Initialize input variables and interaction function tensors.'''
 
         ###########################################################################
         ###################### Variable Initialization ############################
+        self.mon1 = mon1
+        self.mon2 = mon2
         self.xyz1 = xyz1
         self.xyz2 = xyz2
         self.multipole_file1 = multipole_file1
         self.multipole_file2 = multipole_file2
+        self.axes1 = axes1
+        self.axes2 = axes2
         self.exponents = exponents
         self.slater_correction = slater_correction
+        self.rigid_monomers = rigid_monomers
         # Damping Type. Acceptable options are currently 'None' and
         # 'Tang-Toennies'
         self.damping_type = damping_type
@@ -157,12 +167,46 @@ class Multipoles:
             array of size len(self.xyz1).
 
         '''
-        self.multipoles1, self.local_coords1 = self.read_multipoles(self.multipole_file1)
-        self.multipoles2, self.local_coords2 = self.read_multipoles(self.multipole_file2)
+        if self.rigid_monomers:
+            self.atoms1, self.multipoles1, self.local_coords1 = self.read_multipoles(self.multipole_file1)
+            self.atoms2, self.multipoles2, self.local_coords2 = self.read_multipoles(self.multipole_file2)
 
+            self.ea = self.get_local_to_global_rotation_matrix(self.xyz1,self.local_coords1)
+            self.eb = self.get_local_to_global_rotation_matrix(self.xyz2,self.local_coords2)
 
-        self.ea = self.get_local_to_global_rotation_matrix(self.xyz1,self.local_coords1)
-        self.eb = self.get_local_to_global_rotation_matrix(self.xyz2,self.local_coords2)
+            # Broadcast ea and eb for the number of atoms in each monomer;
+            # this is in order to keep the shape of ea/eb consistant
+            # regardless of whether or not the monomers are being treated as
+            # rigid
+            self.ea = np.tile(self.ea[:,np.newaxis,...],(1,self.natoms1,1,1))
+            self.eb = np.tile(self.eb[:,np.newaxis,...],(1,self.natoms2,1,1))
+
+        else:
+            # Read in original multipole moments
+            self.atoms1, self.multipoles1, self.local_coords1 = self.read_multipoles(self.multipole_file1)
+            self.atoms2, self.multipoles2, self.local_coords2 = self.read_multipoles(self.multipole_file2)
+
+            # Read in local axis definitions from relevant .axes file
+            # TODO: Read in axes file(s) explicitly; make these files
+            # independent of the monomer file names
+            self.axis_file1 = self.mon1 + '.axes'
+            self.axis_file2 = self.mon2 + '.axes'
+
+            self.axis_definitions1, self.local_axes1 = rotations.read_local_axes(self.atoms1,self.local_coords1,self.axis_file1)
+            self.axis_definitions2, self.local_axes2 = rotations.read_local_axes(self.atoms2,self.local_coords2,self.axis_file2)
+            global_xyz = np.eye(3)
+
+            self.multipoles1 = rotations.rotate_multipole_moments(self.multipoles1,self.local_axes1,global_xyz)
+            self.multipoles2 = rotations.rotate_multipole_moments(self.multipoles2,self.local_axes2,global_xyz)
+
+            self.assert_good_multipole_transformations(
+                    self.axis_file1,self.multipole_file1,self.atoms1,self.multipoles1,self.axis_definitions1)
+            self.assert_good_multipole_transformations(
+                    self.axis_file2,self.multipole_file2,self.atoms2,self.multipoles2,self.axis_definitions2)
+
+            # Define the local axis system for each monomer, ea and eb
+            self.ea = self.axes1
+            self.eb = self.axes2
 
         self.update_direction_vectors(init=True)
 
@@ -174,7 +218,72 @@ class Multipoles:
                         int_type = (qi,qj)
                         self.multipole_energy += self.get_multipole_energy(i,j,int_type)
 
+        print self.multipole_energy[0]
         return self.multipole_energy
+####################################################################################################    
+
+
+####################################################################################################    
+    def assert_good_multipole_transformations(self,axes_file,multipole_file,atoms,multipoles,axis_definitions):
+        '''
+
+        Parameters
+        ----------
+        multipoles: list of dictionaries
+            List of spherical harmonic moments for each atom in a molecule, with
+            individual moments given as a dictionary with keys 
+            ['Q00', 'Q10', 'Q11c', 'Q11s', 'Q20', 'Q21c', 'Q21s', 'Q22c', 'Q22s']
+            All moments are given with respect to the global coordinate frame
+            global_axes
+
+        axis_definitions: list of lists (N x 2)
+            Local axis definitions for each atom in a molecule, with the outer
+            list corresponding to the atom number, and the inner list
+            corresponding to either the z- or x-axis definition, respectively.
+            See documentation for the .axes file for more details on how this
+            list of lists is constructed.
+
+        Returns
+        ------
+            True if the multipole transformation passes all checks, False
+            otherwise
+
+        '''
+        tol = 1e-7
+        warning_template = '''
+
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        Warning!!!! In {0}, you have not specified a {1}-axis for atom {2}.
+        Nevertheless, there is a non-zero value listed for the {3} moment in {4}.
+
+        In this case, not specifying a unique {1}-axis can lead to problems in
+        the required coordinate transformations for calculating the multipolar
+        electrostatic energy.
+
+        To fix this problem, either:
+            1. Specify a {1}-axis for atom {2} in {0}.
+            2. (Assuming all the dimer configurations in your .sapt file have
+            the same monomer configuration as in your .mom file), set
+            rigid_monomer_conformation = True in the input/settings.py file.
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+        '''
+
+        for atom,multipole,axis in zip(atoms,multipoles,axis_definitions):
+            # If a z-axis has not been explicitly defined, make sure all y10,
+            # y20 moments are zero
+            if not axis[0]:
+                moments = ['Q10','Q20']
+                for sph in moments:
+                    assert not (multipole.has_key(sph) and abs(multipole[sph] > tol)),\
+                        warning_template.format(axes_file,'z',atom,sph,multipole_file)
+            if not axis[1]:
+                moments = ['Q11c','Q11s','Q21c','Q21s','Q22c','Q22s']
+                for sph in moments:
+                    assert not (multipole.has_key(sph) and abs(multipole[sph] > tol)),\
+                        warning_template.format(axes_file,'x',atom,sph,multipole_file)
+
+        return True
 ####################################################################################################    
 
 
@@ -186,7 +295,7 @@ class Multipoles:
         ----------
         init : boolean, optional
             Call to this subroutine should be slightly more involved for the
-            first fall; set init to True for this first call
+            first call; set init to True for this first call
 
         Returns
         -------
@@ -197,10 +306,10 @@ class Multipoles:
         eab : 4darray
            Unit vector from site a to b (ndatpts x natoms 1 x natoms2 x 3)
            vector )
-        ra : 3darray
+        ra : 4darray
             Inter-site distance vector expressed using the local axis of site
             a
-        rb : 3darray
+        rb : 4darray
             Inter-site distance vector expressed using the local axis of site
             b
         cab : 3darray
@@ -218,13 +327,22 @@ class Multipoles:
         r = (x2[:,np.newaxis,:,:] - x1[:,:,np.newaxis,:])**2
         self.r = np.sqrt(np.sum(r,axis=-1))
         self.eab = (x2[:,np.newaxis,:,:] - x1[:,:,np.newaxis,:])/self.r[...,np.newaxis]
-        self.ra = np.sum(self.ea[:,np.newaxis,np.newaxis,:,:]*self.eab[:,:,:,np.newaxis,:],axis=-1)
-        self.rb = -np.sum(self.eb[:,np.newaxis,np.newaxis,:,:]*self.eab[:,:,:,np.newaxis,:],axis=-1)
-        if init:
+        ##### OLD CODE ########
+        ## self.ra = np.sum(self.ea[:,np.newaxis,np.newaxis,:,:]*self.eab[:,:,:,np.newaxis,:],axis=-1)
+        ## self.rb = -np.sum(self.eb[:,np.newaxis,np.newaxis,:,:]*self.eab[:,:,:,np.newaxis,:],axis=-1)
+        ##### OLD CODE ########
+        self.ra = np.sum(self.ea[:,:,np.newaxis,...]*self.eab[:,:,:,np.newaxis,:],axis=-1)
+        self.rb = -np.sum(self.eb[:,np.newaxis,...]*self.eab[:,:,:,np.newaxis,:],axis=-1)
+        if init: # TODO Maybe not init only now? Check.
             # cab and cba do not depend on self.xyz1 or self.xyz2, and only
             # need to be updated at the start of a computation.
-            self.cab = np.sum(self.ea[:,:,np.newaxis,:]*self.eb[:,np.newaxis,:,:],axis=-1)
-            self.cba = np.sum(self.eb[:,:,np.newaxis,:]*self.ea[:,np.newaxis,:,:],axis=-1)
+            ##### OLD CODE ######################
+            ## self.cab = np.sum(self.ea[:,:,np.newaxis,:]*self.eb[:,np.newaxis,:,:],axis=-1)
+            ## self.cba = np.sum(self.eb[:,:,np.newaxis,:]*self.ea[:,np.newaxis,:,:],axis=-1)
+            ##### OLD CODE ######################
+
+            self.cab = np.sum(self.ea[:,:,np.newaxis,:,np.newaxis,:]*self.eb[:,np.newaxis,:,np.newaxis,:,:],axis=-1)
+            self.cba = np.sum(self.eb[:,:,np.newaxis,:,np.newaxis,:]*self.ea[:,np.newaxis,:,np.newaxis,:,:],axis=-1)
 
         return self.r, self.eab, self.ra, self.rb, self.cab, self.cba
 ####################################################################################################    
@@ -265,6 +383,7 @@ class Multipoles:
         new_element_flag = False
         atomic_coordinates = []
         atomic_multipoles = []
+        atoms = []
         tmp = {}
         for line in data:
         #for line in data[2:]:
@@ -272,6 +391,7 @@ class Multipoles:
                 break
             elif new_element_flag:
                 atom = line[0]
+                atoms.append(atom)
                 atomic_coordinates.append([float(i) for i in line[1:4]])
                 new_element_flag = False
             elif not line: 
@@ -287,7 +407,7 @@ class Multipoles:
                 tmp[line[0]] = float(line[-1])
 
         #return atomic_multipoles, np.array([np.array(line) for line in atomic_coordinates])
-        return atomic_multipoles, np.array(atomic_coordinates)
+        return atoms, atomic_multipoles, np.array(atomic_coordinates)
 ####################################################################################################    
 
 
@@ -829,8 +949,12 @@ class Multipoles:
         r = self.r[:,i,j]
         ra = self.ra[:,i,j]
         rb = self.rb[:,i,j]
-        cab = self.cab
-        cba = self.cba
+        ###### OLD COdE ########
+        ## cab = self.cab
+        ## cba = self.cba
+        ###### OLD COdE ########
+        cab = self.cab[:,i,j]
+        cba = self.cba[:,j,i]
 
         # Flatten numpy arguments
         xa = ra[:,0]

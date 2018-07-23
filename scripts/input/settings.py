@@ -2,8 +2,8 @@
 ######################### General Settings ###############################
 ##########################################################################
 # Monomer Names (should match ordering in .sapt file)
-mon1                       =   'methane'
-mon2                       =   'methane'
+mon1                       =   'h2o'
+mon2                       =   'h2o'
                             
 # Constrained Atomtype settings: Make a list of all atomtypes whose parameters
 # should *not* be fit, and include parameters for these atomtypes in the
@@ -11,7 +11,7 @@ mon2                       =   'methane'
 constrained_atomtypes      =    []
                             
 # Names for output files
-file_prefix                =   'constrain_exp_'
+file_prefix                =   'fit_exp_'
 file_suffix                =   '_unconstrained'
 
 ##########################################################################
@@ -22,13 +22,16 @@ file_suffix                =   '_unconstrained'
 ##########################################################################
 ##################### Component-Specific Settings ########################
 ##########################################################################
-# Electrostatic Settings: choose which multipole files the program should use
+# Electrostatic Settings: choose which multipole files the program should use,
+# and specify whether or not each of the monomer configurations from the .sapt
+# file match the geometries specified in each .mom file
 multipoles_suffix          =   '_ISA_L2.mom'
+rigid_monomers             =    False
 
 # Exchange Settings: fit_bii selects whether or not to treat the ISA
 # short-range exponents are soft- (fit_bii=True) or hard-constraints
 # (fit_bii=False)
-fit_bii                    =    False
+fit_bii                    =    True
 
 # Induction Settings: Choose the type and parameters for the polarization
 # damping functions. Options for thole_damping_type are 'thole_tinker' and
@@ -36,7 +39,7 @@ fit_bii                    =    False
 # respect to the two different damping types
 # respectively
 thole_damping_type         =   'thole_tinker'
-thole_param                =    0.39
+thole_param                =    0.36
 
 # Dispersion Settings: Choose which parameters to fit to the dispersion energies. Fit options
 # include 'none' (to fit no parameters), 'anisotropic' (to just fit

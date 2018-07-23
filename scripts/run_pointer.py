@@ -61,6 +61,7 @@ fit_residuals = settings.fit_residuals
 separate_induction_exponents = defaults.separate_induction_exponents
 slater_charge_penetration = defaults.include_slater_charge_penetration
 exact_radial_correction = defaults.exact_radial_correction
+rigid_monomers = settings.rigid_monomers
 
 n_a_params = 6 # Aexch, Aelst, Aind, Adhf, Adisp, Aresid by default
 
@@ -145,6 +146,7 @@ def create_param_file(mon1,mon2,input_sapt, constraints, cn_coeffs,
         f.write('induction_damping_type {}\n'.format(defaults.induction_damping_type))
         f.write('drude_method {}\n'.format(defaults.drude_method))
         f.write('thole_param            {:8.6f}\n'.format(thole_param))
+        f.write('rigid_monomers            {}\n'.format(rigid_monomers))
         f.write('\n')
 
         # A coefficients
