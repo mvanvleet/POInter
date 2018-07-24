@@ -1,36 +1,46 @@
 #!/usr/bin/env python
 """
-
-    Methods
-    -------
-    get_multipole_electrostatic_energy
-        Given multipole moments for atoms on both monomers 1 and 2, computes
-        the multipole component of the electrostatic interaction energy
-        between the two monomers for all configurations given by xyz1 and
-        xyz2.
+rotations.py: Perform coordinate and multipole moment transformations between
+the global (dimer) coordinate system and the local (monomer) coordinate
+system.
 
     References
     ----------
     (1) Stone, Anthony. The Theory of Intermolecular Forces, 2nd edition.
-        Chapter 3 and Appendix F, in particular, are useful for defining and
-        explaining the formula used in this module.
-    (2) ORIENT code
-        http://www-stone.ch.cam.ac.uk/programs.html
+    Chapter 3 and Appendix F, in particular, are useful for defining and
+    explaining the formula used in this module.
+
+    (2) Information on Wigner D-matrices:
+        - https://en.wikipedia.org/wiki/Wigner_D-matrix
+        - Stone, Theory of Intermolecular Forces, 2nd ed. p. 274
+        - subroutine "wigner" from rotations.f90 in Anthony Stone's ORIENT
+          code; the functions in this module borrow heavily from his code
+
+    (3) Information on real and complex Spherical Harmonics:
+    https://en.wikipedia.org/wiki/Spherical_harmonics#Real_form
+
+    Methods
+    -------
+
+    Known Issues
+    ------------
+    None
 
     Units
     -----
     Atomic units are assumed throughout this module.
 
-
-Author(s): mvanvleet
 """
+
+__author__ = "Mary Van Vleet"
+__version__ = "1.0"
 
 # Standard Packages
 #from __future__ import division
 import numpy as np
 import sys
 
-###########################################################################
+####################################################################################################    
 def rotate_sph_harm(moments, r):
     '''
     Takes a set of spherical tensor moments and rotation matrix R for ordinary
@@ -126,104 +136,9 @@ def rotate_sph_harm(moments, r):
     rotated_moments = np.dot(D,moments)
 
     return rotated_moments
-###########################################################################
+####################################################################################################    
 
 
-## ####################################################################################################    
-## def align_axes(monomer_axes,multipole_axes):
-##     '''Compute the rotation matrix that transforms coordinates from the
-##     coordinate frame of a monomer (as specified in the .sapt file) to the
-##     coordinate frame of the multipole moments of that same monomer (as
-##     specified in the .mom file).
-## 
-##     Parameters
-##     ----------
-##     multipole_axes: 3darray
-##         Local coordiante frame of the multipole moments for each atom in a
-##         given monomer, of size (natoms,3,3).
-##     monomer_axes: 4darray
-##         Local coordinate frame (3 x 3 array) specified for each dimer
-##         configuration and for each atom in a given monomer, of
-##         size (ndimergeometries x natoms/monomer x 3 x 3).
-## 
-##     Returns
-##     -------
-##     rotation_matrix : 4darray
-##         Rotation matrix that transforms coordinates from the multipolar 
-##         frame to the local monomer-in-dimer coordinate frame, of
-##         size (ndimergeometries x natoms/monomer x 3 x 3).
-## 
-##     '''
-##     # Initialize rotation matrix with the identity matrix for each atom
-##     multipole_axes = multipole_axes[np.newaxis,:]
-##     rotation_matrix = np.array([[np.eye(3) for atom in config] for config in
-##         monomer_axes])
-## 
-##     print '-----before first rotation----'
-##     #print multipole_axes.shape
-##     print monomer_axes.shape
-##     #print np.round(multipole_axes[0][0],3)
-##     print np.round(monomer_axes[0][0],3)
-##     print '-----'
-## 
-##     print '-----monomer axes inverse ----'
-##     print np.round(np.linalg.inv(monomer_axes[0,0]),3)
-##     print '-----'
-## 
-##     # Rotate coordinate frame in order to properly align x-axis
-##     #v1 = multipole_axes[...,2,:] 
-##     v1 = rotation_matrix[...,2,:] 
-##     v2 = monomer_axes[...,2,:]
-##     q_w,q_vec = get_rotation_quaternion(v1,v2)
-##     #monomer_axes = rotate_local_xyz(q_w, q_vec, monomer_axes)
-##     multipole_axes = rotate_local_xyz(q_w, q_vec, multipole_axes)
-##     print '-----after first rotation----'
-##     #print multipole_axes.shape
-##     print monomer_axes.shape
-##     #print np.round(multipole_axes[0][0],3)
-##     print np.round(monomer_axes[0][0],3)
-##     print '-----'
-##     rotation_matrix = rotate_local_xyz(q_w,q_vec, rotation_matrix)
-## 
-##     #v1 = multipole_axes[:,:,2] 
-##     v1 = rotation_matrix[:,:,2] 
-##     v2 = monomer_axes[:,:,2]
-## 
-##     # Rotate coordinate frame in order to properly align z-axis
-##     #v3 = multipole_axes[:,:,0] #- trans_global_xyz[:,0]
-##     v3 = rotation_matrix[:,:,0] #- trans_global_xyz[:,0]
-##     v4 = monomer_axes[:,:,0] #- trans_local_xyz[:,0]
-##     
-##     print np.dot(v1[0][0],v3[0][0])
-##     print np.dot(v2[0][0],v4[0][0])
-##     ## print np.dot(v1,v3)[0]
-##     ## print np.dot(v2,v4)[0]
-## 
-##     q_w,q_vec = get_rotation_quaternion(v3,v4,v_orth=v1)
-##     #monomer_axes = rotate_local_xyz(q_w, q_vec, monomer_axes)
-##     multipole_axes = rotate_local_xyz(q_w, q_vec, multipole_axes)
-##     print '-----after second rotation----'
-##     #print multipole_axes.shape
-##     #print np.round(multipole_axes[0][0],3)
-##     print np.round(monomer_axes[0][0],3)
-##     print '-----:)---'
-## 
-##     #assert np.allclose(np.round(multipole_axes[0][0],3), np.round(monomer_axes[0][0],3))
-##     rotation_matrix = rotate_local_xyz(q_w,q_vec, rotation_matrix)
-## 
-##     #rotation_matrix = np.linalg.inv(rotation_matrix)
-##     print 'rotation matrix:'
-##     print np.round(rotation_matrix[0][0],3)
-## 
-##     ## global_to_multipolar = np.linalg.inv(multipole_axes)
-##     ## #global_to_multipolar = multipole_axes
-## 
-##     ## #rotation_matrix = np.sum(global_to_multipolar[:,:,:,:,np.newaxis]*rotation_matrix[:,:,np.newaxis,:,:],axis=-2)
-##     ## rotation_matrix = np.sum(rotation_matrix[:,:,:,:,np.newaxis]*global_to_multipolar[:,:,np.newaxis,:,:],axis=-2)
-## 
-##     return rotation_matrix
-   
-   
 ####################################################################################################    
 def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
     '''Compute the rotation matrix that transforms coordinates from the
@@ -240,9 +155,10 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
 
     Returns
     -------
-    rotation_matrix : 3x3 array
+    rotation_matrix : 3darray
         Rotation matrix that transforms coordinates from the local (i.e.
-        monomer multipole) frame to the global coordinate frame.
+        monomer multipole) frame to the global (dimer) coordinate frame for
+        each dimer configuration. Size (ndatpts x 3 x 3).
 
     '''
 
@@ -492,7 +408,8 @@ def rotate_multipole_moments(multipoles,local_axes,global_axis=np.eye(3)):
     rotated_moments = []
     for iatom in xrange(len(multipoles)):
         # Compute quaternion to rotate global axis frame to local one
-        R = get_local_to_global_rotation_matrix(global_axis[np.newaxis,...],local_axes[iatom])
+        R, transformation_success = get_local_to_global_rotation_matrix(global_axis[np.newaxis,...],local_axes[iatom])
+        assert transformation_success
         Rinv = np.linalg.inv(R)
 
         # Express multipole moments as an ordered list rather than as a dictionary
@@ -576,91 +493,80 @@ def rotate_local_xyz(a,vector=np.array([0,0,1]),local_xyz=np.array([1,2,3]),thre
     np.seterr(all="warn")
     return new_local_xyz
 ####################################################################################################    
-## 
-## 
-## ###########################################################################
-## ########################## Main Code ######################################
-## 
-## if __name__ == '__main__':
-## 
-##     # Read in data from mom file
-##     with open(mom_ifile,'r') as f:
-##         mom_lines = [ line.split() for line in f.readlines() ]
-## 
-##     # Obtain point charge, dipole, and quadrupole information for each atom
-##     tag = 'Type'
-##     atoms = []
-##     labels = []
-##     moments = []
-##     xyz = []
-##     for line in mom_lines:
-##         if len(line) > 5 and line[4] == tag:
-##             atoms.append(line[0])
-##             labels.append([])
-##             moments.append([])
-##             xyz.append([float(i) for i in line[1:4]])
-##         elif not line or '!' in line[0] or line[0] in ['End','Units']:
-##             continue
-##         else:
-##             labels[-1].append(line[0])
-##             moments[-1].append(float(line[2]))
-## 
-##     # Ensure labels are ordered normally
-##     label_order = ['Q00', 'Q10', 'Q11c', 'Q11s', 'Q20', 'Q21c', 'Q21s', 'Q22c', 'Q22s']
-##     for l in labels:
-##         assert l == label_order
-## 
-##     # Read in axis information for each atom
-##     local_axis = read_local_axes(atoms,xyz,axes_ifile)
-##     global_xyz = np.eye(3)
-## 
-##     # Compute quaternion to rotate global axis frame to local one
-##     rotated_moments = []
-##     for iatom in xrange(len(atoms)):
-##         R = get_local_to_global_rotation_matrix(global_xyz[np.newaxis,...],local_axis[iatom])
-##         Rinv = np.linalg.inv(R)
-## 
-##         rotated_moments.append(rotate_sph_harm(moments[iatom], Rinv[0]))
-## 
-## 
-## 
-##     # Rotate each multipole according to the local axis information provided in
-##     # the .axes file
-##     au_to_nm = 0.0529177
-##     template = '<Multipole type="{:s}" kz="fill" kx="fill" c0="{:.6g}" d1="{:.6g}" d2="{:.6g}" d3="{:.6g}" q11="{:.6g}" q21="{:.6g}" q22="{:.6g}" q31="{:.6g}" q32="{:.6g}" q33="{:.6g}"  />'
-## 
-##     # Print labels in Cartesian coordinates and OpenMM units
-##     print
-##     for atom, m in zip(atoms,rotated_moments):
-##         c0 = m[0] #point charge
-##         d1 = m[2] # Q11c = dx = d1
-##         d2 = m[3] # Q11s = dy = d2
-##         d3 = m[1] # Q10  = dz = d3
-##         # OpenMM prints uses values for the quadrupole moments that are 3x the
-##         # value given by CamCASP (presumably due to normalization)
-##         q11 = (1.0/3)*(np.sqrt(3)/2*m[7] - 0.5*m[4])
-##         q21 = (1.0/3)*(np.sqrt(3)/2*m[8])
-##         q22 = (1.0/3)*(-np.sqrt(3)/2*m[7] - 0.5*m[4])
-##         q31 = (1.0/3)*(np.sqrt(3)/2*m[5])
-##         q32 = (1.0/3)*(np.sqrt(3)/2*m[6])
-##         q33 = (1.0/3)*(m[4])
-## 
-##         d1 *= au_to_nm
-##         d2 *= au_to_nm
-##         d3 *= au_to_nm
-## 
-##         q11 *= au_to_nm**2
-##         q21 *= au_to_nm**2
-##         q22 *= au_to_nm**2
-##         q31 *= au_to_nm**2
-##         q32 *= au_to_nm**2
-##         q33 *= au_to_nm**2
-## 
-## 
-##         xml = template.format(atom,c0,d1,d2,d3,q11,q21,q22,q31,q32,q33)
-##         print ' '.join(xml.split())
-## 
-##     print
-## 
-## ###########################################################################
-## ###########################################################################
+
+
+####################################################################################################    
+def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
+    '''Compute the rotation matrix that transforms coordinates from the
+    local to global coordinate frame.
+
+    Parameters
+    ----------
+    global_xyz : 3darray
+        xyz coordinates of all atoms and all monomer configurations for which multipole
+        interactions will later be computed, of size (ndatpts,natoms,3).
+    local_xyz : 2darray
+        xyz coordinates of each atom in the multipolar coordinate frame,
+        of size (natoms,3).
+
+    Returns
+    -------
+    rotation_matrix : 3x3 array
+        Rotation matrix that transforms coordinates from the local (i.e.
+        monomer multipole) frame to the global coordinate frame.
+
+    '''
+    # Get rotation vector from the global axis to the local axis
+    # http://stackoverflow.com/questions/1171849/finding-quaternion-representing-the-rotation-from-one-vector-to-another
+    rotation_matrix = np.array([np.identity(3) for x in global_xyz])
+    trans_local_xyz = local_xyz[np.newaxis,:] - local_xyz[0]
+    trans_global_xyz = global_xyz - global_xyz[:,0,np.newaxis]
+    if len(global_xyz[0]) == 1:
+        #if xyz is an atom, don't need to rotate local axes
+        transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
+        return rotation_matrix, transformation_success
+
+    v1 = trans_local_xyz[:,1] - trans_local_xyz[:,0]
+    v2 = trans_global_xyz[:,1] - trans_global_xyz[:,0]
+    q_w,q_vec = get_rotation_quaternion(v1,v2)
+
+    np.seterr(all="ignore")
+    trans_local_xyz = rotate_local_xyz(q_w, q_vec, trans_local_xyz)
+    rotation_matrix = rotate_local_xyz(q_w,q_vec, rotation_matrix)
+    np.seterr(all="warn")
+
+    if len(global_xyz[0]) == 2:
+        #if xyz is diatomic, don't need to rotate second set of axes
+        assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
+        return rotation_matrix
+
+    v1 = trans_local_xyz[:,1] - trans_local_xyz[:,0]
+    v2 = trans_global_xyz[:,1] - trans_global_xyz[:,0]
+    for i in range(2,len(global_xyz[0])):
+        # Search for vector in molecule that is not parallel to the first
+        v1b = trans_local_xyz[:,i] - trans_local_xyz[:,0]
+        v2b = trans_global_xyz[:,i] - trans_global_xyz[:,0]
+        v3 = np.cross(v1,v1b)
+        v4 = np.cross(v2,v2b)
+        if not np.allclose(v3,np.zeros_like(v3),atol=1e-8):
+            break
+    else:
+        # All vectors in molecule are parallel; hopefully molecules are
+        # now aligned
+        transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
+        #assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-1)
+        return rotation_matrix, transformation_success
+
+    # Align an orthogonal vector to v1; once this vector is aligned, the
+    # molecules should be perfectly aligned
+    q_w,q_vec = get_rotation_quaternion(v3,v4,v_orth=v1)
+    np.seterr(all="ignore")
+    trans_local_xyz = rotate_local_xyz(q_w, q_vec, trans_local_xyz)
+    rotation_matrix = rotate_local_xyz(q_w,q_vec, rotation_matrix)
+    np.seterr(all="warn")
+    transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
+
+    return rotation_matrix, transformation_success
+####################################################################################################    
+
+

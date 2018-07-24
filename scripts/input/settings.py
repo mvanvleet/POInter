@@ -24,9 +24,9 @@ file_suffix                =   '_unconstrained'
 ##########################################################################
 # Electrostatic Settings: choose which multipole files the program should use,
 # and specify whether or not each of the monomer configurations from the .sapt
-# file match the geometries specified in each .mom file
+# file have the same internal coordinates as the monomers in each .mom file
 multipoles_suffix          =   '_ISA_L2.mom'
-rigid_monomers             =    False
+rigid_monomers             =    True
 
 # Exchange Settings: fit_bii selects whether or not to treat the ISA
 # short-range exponents are soft- (fit_bii=True) or hard-constraints

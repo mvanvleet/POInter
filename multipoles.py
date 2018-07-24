@@ -5,6 +5,7 @@ import sys
 import sympy as sp
 import os
 from sympy.utilities import lambdify
+from warnings import warn
 
 # Local Packages
 from functional_forms import get_damping_factor
@@ -107,7 +108,6 @@ class Multipoles:
                 multipoles; currently using a formula that makes intuitive
                 sense by that may not be entirely accurate. Make MVV check
                 this.'''
-        #self.damping_type = 'Tang-Toennies'
 
         self.natoms1 = len(self.xyz1[0])
         self.natoms2 = len(self.xyz2[0])
@@ -156,9 +156,24 @@ class Multipoles:
         '''Get the multipole component of the first order electrostatic energy
         between monomers for each input configuration.
 
+        Two algorithms exist for computing the multipole electrostatic energy.
+        The first strategy (rigid_monomers = True) uses multipole moments
+        expressed in the global (Cartesian) coordinate frame, and calculates
+        ea/eb (the unit vectors defining the local axis system of molecule
+        a/b) as the rotation matrix that transforms the molecular coordinates
+        from the .sapt file to the molecular coordinates of the .mom file.
+
+        Alternately (and perhaps conceptually more simply), and given a local axis
+        system defined for each atom in each molecule (via the .axes file),
+        the multipole moments themselves can be rotated into the local axis
+        frame. In this case, ea/eb is simply the local axis frame for each
+        monomer, which has previously been calculated in fit_ff_parameters.py
+        and stored in the self.axes1/self.axes2 variables.
+
         Parameters
         ----------
-        None
+        None explicitly, though the routine relies on several class variables
+        defined elsewhere.
 
         Returns
         -------
@@ -171,13 +186,18 @@ class Multipoles:
             self.atoms1, self.multipoles1, self.local_coords1 = self.read_multipoles(self.multipole_file1)
             self.atoms2, self.multipoles2, self.local_coords2 = self.read_multipoles(self.multipole_file2)
 
-            self.ea = self.get_local_to_global_rotation_matrix(self.xyz1,self.local_coords1)
-            self.eb = self.get_local_to_global_rotation_matrix(self.xyz2,self.local_coords2)
+            self.ea, transformation_success1 = rotations.get_local_to_global_rotation_matrix(self.xyz1,self.local_coords1)
+            self.eb, transformation_success2  = rotations.get_local_to_global_rotation_matrix(self.xyz2,self.local_coords2)
+
+            if not transformation_success1:
+                self.assess_rotation_failure(1,self.xyz1,self.local_coords1)
+            if not transformation_success2:
+                self.assess_rotation_failure(2,self.xyz2,self.local_coords2)
 
             # Broadcast ea and eb for the number of atoms in each monomer;
             # this is in order to keep the shape of ea/eb consistant
             # regardless of whether or not the monomers are being treated as
-            # rigid
+            # rigid or flexible
             self.ea = np.tile(self.ea[:,np.newaxis,...],(1,self.natoms1,1,1))
             self.eb = np.tile(self.eb[:,np.newaxis,...],(1,self.natoms2,1,1))
 
@@ -191,25 +211,39 @@ class Multipoles:
             # independent of the monomer file names
             self.axis_file1 = self.mon1 + '.axes'
             self.axis_file2 = self.mon2 + '.axes'
-
-            self.axis_definitions1, self.local_axes1 = rotations.read_local_axes(self.atoms1,self.local_coords1,self.axis_file1)
-            self.axis_definitions2, self.local_axes2 = rotations.read_local_axes(self.atoms2,self.local_coords2,self.axis_file2)
+            self.axis_definitions1, self.local_axes1 = rotations.read_local_axes(
+                                                        self.atoms1,self.local_coords1,self.axis_file1)
+            self.axis_definitions2, self.local_axes2 = rotations.read_local_axes(
+                                                        self.atoms2,self.local_coords2,self.axis_file2)
             global_xyz = np.eye(3)
 
-            self.multipoles1 = rotations.rotate_multipole_moments(self.multipoles1,self.local_axes1,global_xyz)
-            self.multipoles2 = rotations.rotate_multipole_moments(self.multipoles2,self.local_axes2,global_xyz)
+            # Rotate multipole moments into the local axis frame defined above
+            self.multipoles1 = rotations.rotate_multipole_moments(
+                                    self.multipoles1,self.local_axes1,global_xyz)
+            self.multipoles2 = rotations.rotate_multipole_moments(
+                                    self.multipoles2,self.local_axes2,global_xyz)
 
+            # Make sure that the user sufficiently specified the local axis
+            # system for each atom
             self.assert_good_multipole_transformations(
-                    self.axis_file1,self.multipole_file1,self.atoms1,self.multipoles1,self.axis_definitions1)
+                    self.axis_file1,self.multipole_file1,
+                    self.atoms1,self.multipoles1,self.axis_definitions1)
             self.assert_good_multipole_transformations(
-                    self.axis_file2,self.multipole_file2,self.atoms2,self.multipoles2,self.axis_definitions2)
+                    self.axis_file2,self.multipole_file2,
+                    self.atoms2,self.multipoles2,self.axis_definitions2)
 
-            # Define the local axis system for each monomer, ea and eb
+            # Express each unit vector of the local axis system in global
+            # (Cartesian) coordinates; these unit vectors will differ for each
+            # dimer configuration, but have already been calculated and stored
+            # in the self.axes1/2 variables.
             self.ea = self.axes1
             self.eb = self.axes2
 
+        # Use ea and eb to define related axis system variables, eab, ra, rb, cab, and
+        # cba
         self.update_direction_vectors(init=True)
 
+        # Calculate the multipole energy for the overall system
         self.multipole_energy = np.zeros_like(self.xyz1[:,0,0])
         for i in xrange(self.natoms1):
             for j in xrange(self.natoms2):
@@ -218,13 +252,13 @@ class Multipoles:
                         int_type = (qi,qj)
                         self.multipole_energy += self.get_multipole_energy(i,j,int_type)
 
-        print self.multipole_energy[0]
         return self.multipole_energy
 ####################################################################################################    
 
 
 ####################################################################################################    
-    def assert_good_multipole_transformations(self,axes_file,multipole_file,atoms,multipoles,axis_definitions):
+    def assert_good_multipole_transformations(
+            self,axes_file,multipole_file,atoms,multipoles,axis_definitions):
         '''
 
         Parameters
@@ -253,35 +287,49 @@ class Multipoles:
         warning_template = '''
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        Warning!!!! In {0}, you have not specified a {1}-axis for atom {2}.
-        Nevertheless, there is a non-zero value listed for the {3} moment in {4}.
+        Error!!!! In {0}, you have not specified a {1}-axis for atom {2}.
+        Nevertheless, upon rotating the multipole moments in {4} into the
+        local coordinate frame specified by {0}, there is a non-zero value
+        listed for the {3} moment. The full listing of multipole moments for
+        {2}, expressed in the local coordinate frame, is as follows: 
 
-        In this case, not specifying a unique {1}-axis can lead to problems in
-        the required coordinate transformations for calculating the multipolar
-        electrostatic energy.
+        {5}
+
+        Due to the non-zero {3} moment and the underspecified {1}-axis, 
+        inaccuracies can arise in calculating the multipolar electrostatic energy.
+        Rather than calculate an erroneous energy, POInter will quit now.
 
         To fix this problem, either:
             1. Specify a {1}-axis for atom {2} in {0}.
             2. (Assuming all the dimer configurations in your .sapt file have
-            the same monomer configuration as in your .mom file), set
-            rigid_monomer_conformation = True in the input/settings.py file.
+                the same monomer configuration(s) as in your .mom file(s)), set
+                rigid_monomers = True in the input/settings.py file.
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         '''
 
         for atom,multipole,axis in zip(atoms,multipoles,axis_definitions):
+            multipole_text = [ '{:4s}  :  {:+8.6f}'.format(k,v) 
+                        for (k,v) in multipole.items()]
+            multipole_text = '\n\t'.join(sorted(multipole_text))
             # If a z-axis has not been explicitly defined, make sure all y10,
             # y20 moments are zero
             if not axis[0]:
                 moments = ['Q10','Q20']
                 for sph in moments:
                     assert not (multipole.has_key(sph) and abs(multipole[sph] > tol)),\
-                        warning_template.format(axes_file,'z',atom,sph,multipole_file)
+                        warning_template.format(axes_file,'z',atom,sph,multipole_file,
+                        multipole_text)
+            # If an x-axis has not been explicitly defined, make sure all
+            # other higher-order moments are zero
             if not axis[1]:
                 moments = ['Q11c','Q11s','Q21c','Q21s','Q22c','Q22s']
                 for sph in moments:
+                    print sph
+                    print multipole.has_key(sph),  abs(multipole[sph] > tol)
                     assert not (multipole.has_key(sph) and abs(multipole[sph] > tol)),\
-                        warning_template.format(axes_file,'x',atom,sph,multipole_file)
+                        warning_template.format(axes_file,'x',atom,sph,multipole_file,
+                        multipole_text)
 
         return True
 ####################################################################################################    
@@ -289,7 +337,9 @@ class Multipoles:
 
 ####################################################################################################    
     def update_direction_vectors(self,init=False):
-        '''
+        '''Given ea and eb (the local axis system for each atom expressed in
+        the global (dimer) coordinate system), define related direction
+        vectors. See Appendix F in Stone's book for more details. 
 
         Parameters
         ----------
@@ -318,7 +368,6 @@ class Multipoles:
             Direction cosines between sites b and a
 
         '''
-        #TODO: Provide clearer descriptions of return values
 
         # r, eab, ra, and rb need to be updated each time self.xyz1 or
         # self.xyz2 change.
@@ -412,225 +461,59 @@ class Multipoles:
 
 
 ####################################################################################################    
-    def get_local_to_global_rotation_matrix(self,global_xyz,local_xyz):
-        '''Compute the rotation matrix that transforms coordinates from the
-        local to global coordinate frame.
-
-        Parameters
-        ----------
-        global_xyz : 3darray
-            xyz coordinates of all atoms and all monomer configurations for which multipole
-            interactions will later be computed, of size (ndatpts,natoms,3).
-        local_xyz : 2darray
-            xyz coordinates of each atom in the multipolar coordinate frame,
-            of size (natoms,3).
-
-        Returns
-        -------
-        rotation_matrix : 3x3 array
-            Rotation matrix that transforms coordinates from the local (i.e.
-            monomer multipole) frame to the global coordinate frame.
-
-        '''
-        # Get rotation vector from the global axis to the local axis
-        # http://stackoverflow.com/questions/1171849/finding-quaternion-representing-the-rotation-from-one-vector-to-another
-        rotation_matrix = np.array([np.identity(3) for x in global_xyz])
+    def assess_rotation_failure(self,mon,local_xyz,global_xyz):
         trans_local_xyz = local_xyz[np.newaxis,:] - local_xyz[0]
         trans_global_xyz = global_xyz - global_xyz[:,0,np.newaxis]
-        if len(global_xyz[0]) == 1:
-            #if xyz is an atom, don't need to rotate local axes
-            assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
-            return rotation_matrix
 
-        v1 = trans_local_xyz[:,1] - trans_local_xyz[:,0]
-        v2 = trans_global_xyz[:,1] - trans_global_xyz[:,0]
-        q_w,q_vec = self.get_rotation_quaternion(v1,v2)
-
-        np.seterr(all="ignore")
-        trans_local_xyz = self.rotate_local_xyz(q_w, q_vec, trans_local_xyz)
-        rotation_matrix = self.rotate_local_xyz(q_w,q_vec, rotation_matrix)
-        np.seterr(all="warn")
-
-        if len(global_xyz[0]) == 2:
-            #if xyz is diatomic, don't need to rotate second set of axes
-            assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
-            return rotation_matrix
-
-        v1 = trans_local_xyz[:,1] - trans_local_xyz[:,0]
-        v2 = trans_global_xyz[:,1] - trans_global_xyz[:,0]
-        for i in range(2,len(global_xyz[0])):
-            # Search for vector in molecule that is not parallel to the first
-            v1b = trans_local_xyz[:,i] - trans_local_xyz[:,0]
-            v2b = trans_global_xyz[:,i] - trans_global_xyz[:,0]
-            v3 = np.cross(v1,v1b)
-            v4 = np.cross(v2,v2b)
-            if not np.allclose(v3,np.zeros_like(v3),atol=1e-8):
-                break
-        else:
-            # All vectors in molecule are parallel; hopefully molecules are
-            # now aligned
-            assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
-            #assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-1)
-            return rotation_matrix
-
-        # Align an orthogonal vector to v1; once this vector is aligned, the
-        # molecules should be perfectly aligned
-        q_w,q_vec = self.get_rotation_quaternion(v3,v4,v_orth=v1)
-        np.seterr(all="ignore")
-        trans_local_xyz = self.rotate_local_xyz(q_w, q_vec, trans_local_xyz)
-        rotation_matrix = self.rotate_local_xyz(q_w,q_vec, rotation_matrix)
-        np.seterr(all="warn")
-
-        try:
-            transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
-            #transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e1,rtol=1e1)
-            assert transformation_success
-        except AssertionError:
-            # print trans_local_xyz - trans_global_xyz
-            mon = 1 if np.array_equal(local_xyz,self.local_coords1) else 2
-            print
-            print 'Warning!!! Global-to-local rotation of multipole moments failed for monomer {} .'.format(mon)
-
-            success = np.all(np.isclose(trans_local_xyz,trans_global_xyz,atol=1e-5),axis=(1,2))
-            ngeometries = success.size
-            nsuccesses = np.sum(success)
-            template = 'Of {} configurations, {} local axis transformation(s) succeeded, and {} failed.'
-            print template.format(ngeometries,nsuccesses,ngeometries - nsuccesses)
-
-            print 'This error commonly arises from neglecting one of the following conditions:'
-            print '1. For each monomer, all internal coordinates in the .sapt file MUST be self-consistent.'
-            print '2. For each monomer, internal coordinates must be self-consistent between the .mom file and .sapt files.'
-
-
-            # If we're only dealing with point charges, the local-axis
-            # transformation doesn't actually matter, and we can continue
-            # running POInter. Otherwise, raise an error.
-            multipoles = self.multipoles1 if mon == 1 else self.multipoles2
-            point_charges_only = True
-            for m in multipoles:
-                if m.keys() == 'Q00':
-                    continue
-                for k,v in m.items():
-                    if k != 'Q00' and v != 0:
-                        point_charges_only = False
-                        break
-                if not point_charges_only:
+        # First, check if we're only dealing with point charges. In this case,
+        # the local-axis transformation doesn't actually matter, and we can
+        # continue running POInter.
+        multipoles = self.multipoles1 if mon == 1 else self.multipoles2
+        point_charges_only = True
+        for m in multipoles:
+            if m.keys() == 'Q00':
+                continue
+            for k,v in m.items():
+                if k != 'Q00' and v != 0:
+                    point_charges_only = False
                     break
-            if point_charges_only:
-                print 'However since only point charges are listed for this monomer, the axis transformation in unimportant, and POInter will continue running.'
-                print 
-            else:
-                print 'Fix these errors and re-run POInter.'
-                print 
-                raise
+            if not point_charges_only:
+                break
+        if point_charges_only:
+            print
+            warn_text = '''
+            The global-to-local axis rotation between the .sapt and .mom
+            coordinate systems failed for monomer {}. However, since only
+            point charges are listed for this monomer, the axis transformation
+            in unimportant, and POInter will continue running.
+            '''.format(mon)
+            warn(warn_text,stacklevel=3)
+            print
+            return
 
-        return rotation_matrix
-####################################################################################################    
+        # Otherwise, the local axis rotation does effect the multipole energy, and an error is
+        # raised for the user
+        success = np.all(np.isclose(trans_local_xyz,trans_global_xyz,atol=1e-5),axis=(-2,-1))
+        ngeometries = success.size
+        nsuccesses = np.sum(success)
 
+        error_text = '''
+        Warning!!! The local-to-global rotation of multipole moments failed for monomer {0}.
+        Of {1} configurations, {2} local axis transformation(s) succeeded, and {3} failed.
 
-####################################################################################################    
-    def get_rotation_quaternion(self,v1,v2,v_orth=np.array([1,0,0]),tol=1e-16):
-        '''Given two vectors v1 and v2, compute the rotation quaternion
-        necessary to align vector v1 with v2.
+        This error commonly arises when one of the following conditions is met:
+            1. For monomer {0}, not all internal coordinates in the .sapt file are self-consistent.
+            2. For monomer {0}, internal coordinates are not self-consistent between the .mom file and .sapt files.
 
-        In the event that v1 and v2 are antiparallel to within some tolold
-        tol, v_orth serves as a default vector about which the rotation
-        from v2 to v1 will occur.
+        To avoid this error in the future, please do one of the following:
+            1. For each monomer, ensure that *all* internal coordinates are consistent between the .mom and .sapt files.
+            2. Set rigid_monomers = False in the file input/settings.py.
+        '''.format(mon,ngeometries,nsuccesses,ngeometries - nsuccesses)
 
-        Parameters
-        ----------
-        v1 : 2darray
-            Vector of size (ndatpts,3) to be rotated.
-        v2 : 2darray
-            Vector of size (ndatpts,3) that is to remain fixed.
-        v_orth : 1darray, optional
-            Cartesian vector providing a default rotation vector in the event
-            that v1 and v2 are antiparallel.
-        tol : float, optional
-            Tolerance from zero at which two vectors are still considered
-            antiparallel.
+        transformation_success = False
 
-        Returns
-        -------
-        q_w : 1darray
-            Rotation amount (in radians) for each of the ndatpts by which v1
-            is to be rotated.
-        q_vec : 2darray
-            Vector for each of the ndatpts about which v1 is to be rotated.
-
-        '''
-        v1 /= np.sqrt(np.sum(v1*v1,axis=-1))[:,np.newaxis]
-        v2 /= np.sqrt(np.sum(v2*v2,axis=-1))[:,np.newaxis]
-
-        dot = np.sum(v1*v2,axis=-1)
-
-        q_vec = np.where(dot[:,np.newaxis] > -1.0 + tol,
-                np.cross(v1,v2), v_orth)
-        q_w = np.sqrt(np.sum(v1*v1,axis=-1)*np.sum(v2*v2,axis=-1)) + dot
-
-        # Normalize quaternion
-        q_norm = np.sqrt(q_w**2 + np.sum(q_vec**2,axis=-1))
-        q_w /= q_norm
-        q_vec /= q_norm[:,np.newaxis]
-
-        return q_w, q_vec
-####################################################################################################    
-
-
-####################################################################################################    
-    def rotate_local_xyz(self,a,vector=np.array([0,0,1]),local_xyz=np.array([1,2,3]),thresh=1e-14):
-        """Compute the new position of a set of points 'local_xyz' in 3-space (given as a
-        3-membered list) after a rotation by 2*arccos(a) about the vector [b,c,d].
-    
-        This method uses quaternions to accomplish the transformation. For more
-        information about the mathematics of quaternions, refer to 
-        http://graphics.stanford.edu/courses/cs164-09-spring/Handouts/handout12.pdf
-
-        Parameters
-        ----------
-        a : 1darray
-            Array of size ndatpts indicating the angle by which local_xyz is to be
-            rotated, where the rotation angle phi = 2*arccos(a).
-        vector : 2darray
-            Array of size (ndatpts,3) containing the vector about which local_xyz
-            is to be rotated.
-        local_xyz : 3darray
-            Array of size (ndatpts,natoms,3) in cartesian space to be rotated by phi about
-            vector.
-
-        Returns
-        -------
-        new_local_xyz : 3darray
-            Array of size (ndatpts,natoms,3) in cartesian space corresponding
-            to the rotated set of points.
-
-        """
-    
-        #Compute unit quaternion a+bi+cj+dk
-        b = vector[:,0]
-        c = vector[:,1]
-        d = vector[:,2]
-        norm = np.sqrt(np.sin(np.arccos(a))**2/(b**2+c**2+d**2))
-        b *= norm
-        c *= norm
-        d *= norm
-    
-        # Compute quaternion rotation matrix:
-        [a2,b2,c2,d2] = [a**2,b**2,c**2,d**2]
-        [ab,ac,ad,bc,bd,cd] = [a*b,a*c,a*d,b*c,b*d,c*d]
-    
-        rotation = np.array([[ a2+b2-c2-d2 ,  2*bc-2*ad  ,  2*bd+2*ac  ],\
-                             [  2*bc+2*ad  , a2-b2+c2-d2 ,  2*cd-2*ab  ],\
-                             [  2*bd-2*ac  ,  2*cd+2*ab  , a2-b2-c2+d2 ]])
-        rotation = np.rollaxis(rotation,-1,0)
-
-        # Compute rotation of local_xyz about the axis
-        new_local_xyz = np.sum(rotation[:,np.newaxis,:,:]*local_xyz[...,np.newaxis,:],axis=-1)
-        # Return new local_xyz unless rotation vector is ill-defined (occurs for
-        # zero rotation), in which case return the original local_xyz
-        new_local_xyz = np.where(np.sqrt(np.sum(vector*vector,axis=-1))[:,np.newaxis,np.newaxis] > thresh, 
-                            new_local_xyz, local_xyz)
-        return new_local_xyz
+        print
+        assert transformation_success, error_text
 ####################################################################################################    
 
 
@@ -1028,8 +911,6 @@ class Multipoles:
         The numerical evaluation of T^{ab}_{tu} for a given r,eab,ea, and eb.
 
         '''
-
-        #print 'interaction tensor 1!!!!!'
 
         # If delT hasn't yet been initialized, do so now
         if not self.delT:
