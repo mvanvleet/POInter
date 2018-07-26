@@ -76,11 +76,11 @@ class Multipoles:
                    xyz1, xyz2, 
                    multipole_file1, multipole_file2, 
                    axes1, axes2,
+                   rigid_monomers,
                    exponents=np.array([]),
                    slater_correction=True,
                    damping_type='None',
                    damp_charges_only=True,
-                   rigid_monomers=True,
                    ):
 
         '''Initialize input variables and interaction function tensors.'''
@@ -152,11 +152,11 @@ class Multipoles:
 
 
 ####################################################################################################    
-    def get_multipole_electrostatic_energy(self):
-        '''Get the multipole component of the first order electrostatic energy
-        between monomers for each input configuration.
+    def get_local_axis_parameters(self,mon=1):
+        '''Get the local axis system and associated multipoles for each
+        monomer in the system.
 
-        Two algorithms exist for computing the multipole electrostatic energy.
+        Two algorithms exist for computing the local axis parameters.
         The first strategy (rigid_monomers = True) uses multipole moments
         expressed in the global (Cartesian) coordinate frame, and calculates
         ea/eb (the unit vectors defining the local axis system of molecule
@@ -175,6 +175,108 @@ class Multipoles:
         None explicitly, though the routine relies on several class variables
         defined elsewhere.
 
+        Limitations
+        -----------
+        1. Algorithm #1 will lead to errors in cases where the internal
+        coordinates between the .mom and .sapt files are not self-consistent,
+        and is not allowed to be used.
+        2. Algorithm #2 can lead to errors in cases where the .axes file is
+        underspecified (i.e. lacks a z- or x-axis for atoms with anisotropic
+        multipole moments). Error checking exists to prevent POInter from
+        using Algorithm #2 under these conditions.
+
+        Returns
+        -------
+        self.multipoles1 : list of dictionaries
+            Multipole moments for each atom in monomer 1; given in the local
+            axis system for that monomer
+
+        self.multipoles2 : list of dictionaries
+            As above, but for monomer 2
+
+        self.ea: 4darray, size (ndatpts x natoms1 x 3 x 3)
+            Unit vectors defining the local axis system for each atom in
+            monomer 1 with respect to the global (dimer) coordinate system.
+            self.ea.shape()[0] == ndatpts as the coordinates for monomer 1
+            differ for each dimer configuration in the .sapt file.
+
+        self.eb: 4darray, size (ndatpts x natoms2 x 3 x 3)
+            As above, but for monomer 2
+
+        '''
+        if self.rigid_monomers:
+            if mon == 1:
+                self.atoms1, self.multipoles1, self.local_coords1 = self.read_multipoles(self.multipole_file1)
+                self.ea, transformation_success1 = rotations.get_local_to_global_rotation_matrix(self.xyz1,self.local_coords1)
+                if not transformation_success1:
+                    self.assess_rotation_failure(1,self.xyz1,self.local_coords1)
+                # Broadcast ea for the number of atoms in each monomer;
+                # this is in order to keep the shape of ea/eb consistant
+                # regardless of whether or not the monomers are being treated as
+                # rigid or flexible
+                self.ea = np.tile(self.ea[:,np.newaxis,...],(1,self.natoms1,1,1))
+            elif mon == 2:
+                self.atoms2, self.multipoles2, self.local_coords2 = self.read_multipoles(self.multipole_file2)
+                self.eb, transformation_success2  = rotations.get_local_to_global_rotation_matrix(self.xyz2,self.local_coords2)
+                if not transformation_success2:
+                    self.assess_rotation_failure(2,self.xyz2,self.local_coords2)
+                self.eb = np.tile(self.eb[:,np.newaxis,...],(1,self.natoms2,1,1))
+            else:
+                sys.exit('Not a valid monomer number')
+        else:
+            if mon == 1:
+                # Read in original multipole moments
+                self.atoms1, self.multipoles1, self.local_coords1 = self.read_multipoles(self.multipole_file1)
+                # Read in local axis definitions from relevant .axes file
+                # TODO: Read in axes file(s) explicitly; make these files
+                # independent of the monomer file names
+                self.axis_file1 = self.mon1 + '.axes'
+                self.axis_definitions1, self.local_axes1 = rotations.read_local_axes(
+                                                            self.atoms1,self.local_coords1,self.axis_file1)
+                # Rotate multipole moments into the local axis frame defined above
+                global_xyz = np.eye(3)
+                self.multipoles1 = rotations.rotate_multipole_moments(
+                                        self.multipoles1,self.local_axes1,global_xyz)
+                # Make sure that the user sufficiently specified the local axis
+                # system for each atom
+                self.assert_good_multipole_transformations(
+                        self.axis_file1,self.multipole_file1,
+                        self.atoms1,self.multipoles1,self.axis_definitions1)
+                # Express each unit vector of the local axis system in global
+                # (Cartesian) coordinates; these unit vectors will differ for each
+                # dimer configuration, but have already been calculated and stored
+                # in the self.axes1/2 variables.
+                self.ea = self.axes1
+            elif mon == 2:
+                self.atoms2, self.multipoles2, self.local_coords2 = self.read_multipoles(self.multipole_file2)
+
+                self.axis_file2 = self.mon2 + '.axes'
+                self.axis_definitions2, self.local_axes2 = rotations.read_local_axes(
+                                                            self.atoms2,self.local_coords2,self.axis_file2)
+                global_xyz = np.eye(3)
+                self.multipoles2 = rotations.rotate_multipole_moments(
+                                        self.multipoles2,self.local_axes2,global_xyz)
+                self.assert_good_multipole_transformations(
+                        self.axis_file2,self.multipole_file2,
+                        self.atoms2,self.multipoles2,self.axis_definitions2)
+                self.eb = self.axes2
+            else:
+                sys.exit('Not a valid monomer number')
+
+        return 
+####################################################################################################    
+
+
+####################################################################################################    
+    def get_multipole_electrostatic_energy(self):
+        '''Get the multipole component of the first order electrostatic energy
+        between monomers for each input configuration.
+
+        Parameters
+        ----------
+        None explicitly, though the routine relies on several class variables
+        defined elsewhere.
+
         Returns
         -------
         self.multipole_energy : ndarray
@@ -182,62 +284,11 @@ class Multipoles:
             array of size len(self.xyz1).
 
         '''
-        if self.rigid_monomers:
-            self.atoms1, self.multipoles1, self.local_coords1 = self.read_multipoles(self.multipole_file1)
-            self.atoms2, self.multipoles2, self.local_coords2 = self.read_multipoles(self.multipole_file2)
 
-            self.ea, transformation_success1 = rotations.get_local_to_global_rotation_matrix(self.xyz1,self.local_coords1)
-            self.eb, transformation_success2  = rotations.get_local_to_global_rotation_matrix(self.xyz2,self.local_coords2)
-
-            if not transformation_success1:
-                self.assess_rotation_failure(1,self.xyz1,self.local_coords1)
-            if not transformation_success2:
-                self.assess_rotation_failure(2,self.xyz2,self.local_coords2)
-
-            # Broadcast ea and eb for the number of atoms in each monomer;
-            # this is in order to keep the shape of ea/eb consistant
-            # regardless of whether or not the monomers are being treated as
-            # rigid or flexible
-            self.ea = np.tile(self.ea[:,np.newaxis,...],(1,self.natoms1,1,1))
-            self.eb = np.tile(self.eb[:,np.newaxis,...],(1,self.natoms2,1,1))
-
-        else:
-            # Read in original multipole moments
-            self.atoms1, self.multipoles1, self.local_coords1 = self.read_multipoles(self.multipole_file1)
-            self.atoms2, self.multipoles2, self.local_coords2 = self.read_multipoles(self.multipole_file2)
-
-            # Read in local axis definitions from relevant .axes file
-            # TODO: Read in axes file(s) explicitly; make these files
-            # independent of the monomer file names
-            self.axis_file1 = self.mon1 + '.axes'
-            self.axis_file2 = self.mon2 + '.axes'
-            self.axis_definitions1, self.local_axes1 = rotations.read_local_axes(
-                                                        self.atoms1,self.local_coords1,self.axis_file1)
-            self.axis_definitions2, self.local_axes2 = rotations.read_local_axes(
-                                                        self.atoms2,self.local_coords2,self.axis_file2)
-            global_xyz = np.eye(3)
-
-            # Rotate multipole moments into the local axis frame defined above
-            self.multipoles1 = rotations.rotate_multipole_moments(
-                                    self.multipoles1,self.local_axes1,global_xyz)
-            self.multipoles2 = rotations.rotate_multipole_moments(
-                                    self.multipoles2,self.local_axes2,global_xyz)
-
-            # Make sure that the user sufficiently specified the local axis
-            # system for each atom
-            self.assert_good_multipole_transformations(
-                    self.axis_file1,self.multipole_file1,
-                    self.atoms1,self.multipoles1,self.axis_definitions1)
-            self.assert_good_multipole_transformations(
-                    self.axis_file2,self.multipole_file2,
-                    self.atoms2,self.multipoles2,self.axis_definitions2)
-
-            # Express each unit vector of the local axis system in global
-            # (Cartesian) coordinates; these unit vectors will differ for each
-            # dimer configuration, but have already been calculated and stored
-            # in the self.axes1/2 variables.
-            self.ea = self.axes1
-            self.eb = self.axes2
+        # Using the local axis system for each monomer, get the local
+        # multipoles and axis systems (ea/eb)
+        self.get_local_axis_parameters(mon=1)
+        self.get_local_axis_parameters(mon=2)
 
         # Use ea and eb to define related axis system variables, eab, ra, rb, cab, and
         # cba
@@ -325,8 +376,6 @@ class Multipoles:
             if not axis[1]:
                 moments = ['Q11c','Q11s','Q21c','Q21s','Q22c','Q22s']
                 for sph in moments:
-                    print sph
-                    print multipole.has_key(sph),  abs(multipole[sph] > tol)
                     assert not (multipole.has_key(sph) and abs(multipole[sph] > tol)),\
                         warning_template.format(axes_file,'x',atom,sph,multipole_file,
                         multipole_text)
@@ -380,6 +429,8 @@ class Multipoles:
         ## self.ra = np.sum(self.ea[:,np.newaxis,np.newaxis,:,:]*self.eab[:,:,:,np.newaxis,:],axis=-1)
         ## self.rb = -np.sum(self.eb[:,np.newaxis,np.newaxis,:,:]*self.eab[:,:,:,np.newaxis,:],axis=-1)
         ##### OLD CODE ########
+        ## print 'shapes:'
+        ## print self.ea.shape, self.eb.shape, self.eab.shape
         self.ra = np.sum(self.ea[:,:,np.newaxis,...]*self.eab[:,:,:,np.newaxis,:],axis=-1)
         self.rb = -np.sum(self.eb[:,np.newaxis,...]*self.eab[:,:,:,np.newaxis,:],axis=-1)
         if init: # TODO Maybe not init only now? Check.
@@ -927,11 +978,16 @@ class Multipoles:
                 self.initialize_del_interaction_tensor()
 
         # Get r, ra, rb, and cab
+        ea = self.ea[:,i]
         r = self.r[:,i,j]
         ra = self.ra[:,i,j]
         rb = self.rb[:,i,j]
-        cab = self.cab
-        cba = self.cba
+        ###### OLD COdE ########
+        ## cab = self.cab
+        ## cba = self.cba
+        ###### OLD COdE ########
+        cab = self.cab[:,i,j]
+        cba = self.cba[:,j,i]
 
 
         if interaction_type in self.delT:
@@ -961,15 +1017,22 @@ class Multipoles:
 
             # Transform to global coordinates
             delT = np.swapaxes(delT,0,1)
-            eainv = np.linalg.inv(self.ea)
+            eainv = np.linalg.inv(ea)
+            ###### OLD CODE ###############
+            #eainv = np.linalg.inv(self.ea)
+            #delT = np.sum(eainv*delT[:,np.newaxis], axis=-1)
+            ###### OLD CODE ###############
             delT = np.sum(eainv*delT[:,np.newaxis], axis=-1)
+            #delT = np.sum(eainv*delT[:,np.newaxis,:,np.newaxis], axis=-1)
 
         else: 
             raise NotImplementedError, '''Higher order derivatives of multipole
             moments have not yet been implemented or sufficiently tested,
-            however this should be possible if later necessary.'''
+            however this should be possible to implement if later necessary.
+            See source code for my initial guess as to the correct
+            implementation.'''
 
-            # This code might be right, but I haven't tested it yet
+            # WARNING! This code might be right, but I haven't tested it yet
             xa = rb[:,0]
             ya = rb[:,1]
             za = rb[:,2]

@@ -370,8 +370,10 @@ class FitFFParameters:
         # Fit parameters for the exchange, electrostatics, induction, and dhf
         # energy components and output results to output files:
         ff_energy = np.zeros_like(self.qm_energy[6])
-
-        self.perform_tests()
+    
+        # Perform any necessary debugging tests
+        #self.perform_tests()
+        #self.get_drude_oscillator_energy()
 
         # Fit exchange pre-factors (and potentially exponents, depending on
         # value of self.fit_bii)
@@ -1711,13 +1713,18 @@ class FitFFParameters:
         if self.drude_method == 'multipole-gradient':
             print 'Calculating drude oscillator energy using a multipole-gradient method'
             from drude_oscillators import Drudes
-            d = Drudes(self.xyz1, self.xyz2, 
+            self.mon1 = self.multipole_file1.split('_')[0]
+            self.mon2 = self.multipole_file2.split('_')[0]
+            d = Drudes(
+                        self.mon1, self.mon2,
+                        self.xyz1, self.xyz2, 
                         self.multipole_file1, self.multipole_file2,
                         self.axes1,self.axes2,
                         self.drude_charges1, self.drude_charges2, 
                         self.springcon1, self.springcon2,
                         #self.all_exponents,
                         exponents,
+                        self.rigid_monomers,
                         self.thole_param, 
                         self.thole_param, 
                         self.slater_correction,
@@ -2088,8 +2095,10 @@ class FitFFParameters:
                                self.xyz1,self.xyz2,
                                self.multipole_file1,self.multipole_file2,
                                self.axes1,self.axes2,
+                               self.rigid_monomers,
                                self.all_exponents,self.slater_correction,
-                               self.electrostatic_damping_type,self.damp_charges_only)
+                               self.electrostatic_damping_type,self.damp_charges_only,
+                               )
                 multipole_energy = m.get_multipole_electrostatic_energy()
                 qm_fit_energy -= multipole_energy
                 with open('multipoles.dat','w') as f:
@@ -3387,11 +3396,10 @@ class FitFFParameters:
                        self.xyz1,self.xyz2,
                        self.multipole_file1,self.multipole_file2,
                        self.axes1,self.axes2,
+                       self.rigid_monomers,
                        self.all_exponents,self.slater_correction,
                        self.electrostatic_damping_type,self.damp_charges_only,
-                       self.rigid_monomers,
                        )
-        m.get_multipole_electrostatic_energy()
         multipole_energy = m.get_multipole_electrostatic_energy()
         self.component = 1
         with open('multipoles.dat','w') as f:
@@ -3399,7 +3407,7 @@ class FitFFParameters:
             for q, m in zip(self.qm_energy[self.component],multipole_energy):
                 f.write('{:16.8f} {:16.8f}\n'.format(q,m))
 
-        exit()
+        return
 
         # Fit electrostatic, induction, and dhf pre-factors
         # energy components and output results to output files:

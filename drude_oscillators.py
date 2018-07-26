@@ -83,12 +83,15 @@ class Drudes:
 
     '''
     
-    def __init__(self, xyz1, xyz2, 
+    def __init__(self, 
+                   mon1, mon2, 
+                   xyz1, xyz2, 
                    multipole_file1, multipole_file2, 
                    axes1,axes2,
                    qshell1, qshell2, 
                    springcon1,springcon2,
                    exponents,
+                   rigid_monomers,
                    screenlength1=2.0, screenlength2=2.0, 
                    slater_correction=True,
                    intra_damping_type='thole_tinker',
@@ -136,6 +139,8 @@ class Drudes:
 
         ###########################################################################
         ###################### Variable Initialization ############################
+        self.mon1 = mon1
+        self.mon2 = mon2
         self.xyz1 = xyz1
         self.xyz2 = xyz2
         self.multipole_file1 = multipole_file1
@@ -144,6 +149,7 @@ class Drudes:
         self.axes2 = axes2
         self.qshell1 = qshell1
         self.qshell2 = qshell2
+        self.rigid_monomers = rigid_monomers
         self.springcon1 = springcon1
         self.springcon2 = springcon2
         self.exponents = exponents
@@ -267,27 +273,38 @@ class Drudes:
         if init:
             # M1 class instance for the interaction of mon2 drudes with mon1
             # multipoles
-            m1 = Multipoles(self.xyz1,self.shell_xyz2, self.multipole_file1,
-                    self.multipole_file2,
-                    self.exponents, self.slater_correction)
-            m1.multipoles1, m1.local_coords1 = m1.read_multipoles(self.multipole_file1)
-            m1.ea = m1.get_local_to_global_rotation_matrix(m1.xyz1,m1.local_coords1)
-            m1.multipoles2 = [ {'Q00' : q } for q in self.qshell2 ]
+            m1 = Multipoles(self.mon1, self.mon2,
+                            self.xyz1,self.shell_xyz2, 
+                            self.multipole_file1, self.multipole_file2,
+                            self.axes1, self.axes2,
+                            self.rigid_monomers,
+                            self.exponents, self.slater_correction)
+            ## m1.atoms1, m1.multipoles1, m1.local_coords1 = m1.read_multipoles(self.multipole_file1)
+            ## m1.ea = m1.get_local_to_global_rotation_matrix(m1.xyz1,m1.local_coords1)
+            # Get multipoles1 and ea
+            m1.get_local_axis_parameters(mon=1)
             # Here we're assuming that the drude charges are simple point charges;
             # thus is doesn't matter what we consider the local coordinate system
             # for these shell charges
+            m1.multipoles2 = [ {'Q00' : q } for q in self.qshell2 ]
             m1.eb = np.array([ np.identity(3) for xyz in m1.xyz2])
+            m1.eb = np.tile(m1.eb[:,np.newaxis,...],(1,self.natoms2,1,1))
 
             # M2 class instance for the interaction of mon1 drudes with mon2
             # multipoles
-            m2 = Multipoles(self.xyz2,self.shell_xyz1, self.multipole_file2,
-                    self.multipole_file1,
-                    self.exponents, self.slater_correction)
+            m2 = Multipoles(self.mon2, self.mon1,
+                            self.xyz2,self.shell_xyz1, 
+                            self.multipole_file2, self.multipole_file1,
+                            self.axes2, self.axes1,
+                            self.rigid_monomers,
+                            self.exponents, self.slater_correction)
             # TODO: Should exponents be reversed?
-            m2.multipoles1, m2.local_coords1 = m2.read_multipoles(self.multipole_file2)
-            m2.ea = m2.get_local_to_global_rotation_matrix(m2.xyz1,m2.local_coords1)
+            ## m2.atoms2, m2.multipoles1, m2.local_coords1 = m2.read_multipoles(self.multipole_file2)
+            ## m2.ea = m2.get_local_to_global_rotation_matrix(m2.xyz1,m2.local_coords1)
+            m2.get_local_axis_parameters(mon=1)
             m2.multipoles2 = [ {'Q00' : q } for q in self.qshell1 ]
             m2.eb = np.array([ np.identity(3) for xyz in m2.xyz1])
+            m2.eb = np.tile(m2.eb[:,np.newaxis,...],(1,self.natoms1,1,1))
 
             self.Mon1Multipoles = m1
             self.Mon2Multipoles = m2
@@ -1216,7 +1233,14 @@ class Drudes:
             delqt[r < self.small_r,:] = np.zeros(3)
 
             # Compute efield
+            ## print 'efield shapes:'
+            ## print efield.shape
+            ## print damp.shape
+            ## print delqt.shape
+            ## print ddamp.shape
+            ## print qt.shape
             efield += -1*( damp[:,np.newaxis]*delqt + ddamp*qt[:,np.newaxis])
+            #efield += -1*( damp[:,np.newaxis]*delqt[:,j,:] + ddamp*qt[:,np.newaxis])
 
 
         efield *= self.multipole_efield_scale_factor
