@@ -1,5 +1,5 @@
 #!/share/apps/python
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 # Standard Packages
 import numpy as np
