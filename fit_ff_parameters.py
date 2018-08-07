@@ -1,5 +1,5 @@
 #!/share/apps/python
-__version__ = '1.2.0'
+__version__ = '2.0.0'
 
 # Standard Packages
 import numpy as np
@@ -11,10 +11,12 @@ import sympy as sym
 from sympy.utilities import lambdify
 from sympy.utilities.iterables import flatten
 import itertools
+from collections import OrderedDict
 
 # Local modules
 import functional_forms 
 from multipoles import Multipoles
+import io
 
 # Numpy error message settings
 #np.seterr(all='raise')
@@ -97,47 +99,52 @@ class FitFFParameters:
     (2) McDaniel, J. G.; Schmidt, J. R. J. Phys. Chem. A 2013, 117, 2053-2066.
 
     '''
-    def __init__(self,energy_file,param_file,
-                output_file='coeffs.out',
-                slater_correction=True,
-                fit_bii=False,
-                aij_combination_rule='geometric',
-                bij_combination_rule='geometric_mean',
-                cij_combination_rule='geometric',
-                functional_form='born-mayer'):
+    def __init__(self,
+                settings=['default'],
+                **kwargs
+                ## energy_file,
+                ## param_file,
+                ## output_file='coeffs.out',
+                ## slater_correction=True,
+                ## fit_bii=False,
+                ## aij_combination_rule='geometric',
+                ## bij_combination_rule='geometric_mean',
+                ## cij_combination_rule='geometric',
+                ## functional_form='born-mayer'
+                ):
 
         '''Initilialize input variables and run the main fitting code.
         '''
 
         ###########################################################################
         ################ User-Defined Class Variables #############################
-        # User-Defined Class Variables, below, change frequently enough that
-        # they are read in each time this class is instantiated. Defaults are
-        # given for some of the variables.
-        self.energy_file=energy_file
-        self.param_file=param_file
-        self.output_file=output_file
+        ## # User-Defined Class Variables, below, change frequently enough that
+        ## # they are read in each time this class is instantiated. Defaults are
+        ## # given for some of the variables.
+        ## self.energy_file=energy_file
+        ## self.param_file=param_file
+        ## self.output_file=output_file
 
-        # If set to true, computes the density overlap as the overlap of
-        # Slaters rather than as a simple Born-Mayer potential
-        self.slater_correction = slater_correction
-        # If set to true, fits scale factors to each exponent (i.e., optimizes
-        # exponents)
-        self.fit_bii = fit_bii
+        ## # If set to true, computes the density overlap as the overlap of
+        ## # Slaters rather than as a simple Born-Mayer potential
+        ## self.slater_correction = slater_correction
+        ## # If set to true, fits scale factors to each exponent (i.e., optimizes
+        ## # exponents)
+        ## self.fit_bii = fit_bii
 
-        # Set combination rules for pre-factors and exponents. Options for
-        # each are as follows:
-        #   aij: 'saptff', 'waldman-hagler5', 'geometric', 'geometric_mean' (same as saptff)
-        #   bij: 'saptff', 'waldman-hagler5', 'geometric_mean', 'arithmetic_mean'
-        #   cij: 'geometric'
-        self.aij_combination_rule = aij_combination_rule
-        self.bij_combination_rule = bij_combination_rule
-        self.cij_combination_rule = cij_combination_rule
+        ## # Set combination rules for pre-factors and exponents. Options for
+        ## # each are as follows:
+        ## #   aij: 'saptff', 'waldman-hagler5', 'geometric', 'geometric_mean' (same as saptff)
+        ## #   bij: 'saptff', 'waldman-hagler5', 'geometric_mean', 'arithmetic_mean'
+        ## #   cij: 'geometric'
+        ## self.aij_combination_rule = aij_combination_rule
+        ## self.bij_combination_rule = bij_combination_rule
+        ## self.cij_combination_rule = cij_combination_rule
 
-        # Functional form can be chosen to either be the Born-Mayer or Stone
-        # potentials; see Stone's book for more details.
-        # Options are 'stone', 'born-mayer', or 'lennard-jones'
-        self.functional_form = functional_form
+        ## # Functional form can be chosen to either be the Born-Mayer or Stone
+        ## # potentials; see Stone's book for more details.
+        ## # Options are 'stone', 'born-mayer', or 'lennard-jones'
+        ## self.functional_form = functional_form
         ###########################################################################
         ###########################################################################
 
@@ -177,7 +184,7 @@ class FitFFParameters:
                                       'Total Energy']
 
         # Names of Output Files (ordering same as self.ncomponents)
-        self.energy_component_file = ['exchange.dat',
+        self.energy_componen_suffix = ['exchange.dat',
                                       'electrostatics.dat',
                                       'induction.dat',
                                       'dhf.dat',
@@ -279,11 +286,11 @@ class FitFFParameters:
         self.induction_damping_type = 'Tang-Toennies'
 
         # When fitting parameters, choose whether or not to fit
-        # dispersion. If fit_isotropic_dispersion is set to True, isotropic
+        # dispersion. If scale_isotropic_dispersion is set to True, isotropic
         # dispersion parameters are scaled by a constant. In either case,
-        # setting fit_dispersion to True will fit anisotropic parameters.
+        # setting fit_anisotropic_dispersion to True will fit anisotropic parameters.
         self.fit_dispersion = False
-        self.fit_isotropic_dispersion = False
+        self.scale_isotropic_dispersion = False
 
         # If set to true, fits a final A parameter to errors in the total
         # energy, in an effort to reduce systematic errors in the total energy
@@ -292,7 +299,7 @@ class FitFFParameters:
         # Choose whether to allow for anisotropic drude spring constants; if
         # set to True, kx, ky, and kz spring constants must all be read in
         # (rather than listing one universal spring constant)
-        self.anisotropic_drudes = True
+        #self.anisotropic_drudes = True
 
 
         # ----------------------------------------------------------------------
@@ -333,6 +340,10 @@ class FitFFParameters:
         ###########################################################################
 
 
+        # Read in input files:
+        self.read_settings(settings,kwargs)
+        self.read_params()
+        self.read_energies()
         self.fit_ff_parameters()
 
         return
@@ -359,13 +370,13 @@ class FitFFParameters:
         output to output_file.
 
         '''
-        # Read in input files:
-        self.read_energy_file()
-        self.read_param_file()
+        ## self.read_energy_file()
+        ## self.read_param_file()
         # Initialize arrays, variables, and constants that will later be used
         # in parameter fitting, and which serve to keep track of which atomtypes
         # are isotropic/anisotropic and to be fit/constrained.
         self.initialize_parameters()
+        self.components_to_fit = []
 
         # Fit parameters for the exchange, electrostatics, induction, and dhf
         # energy components and output results to output files:
@@ -378,7 +389,10 @@ class FitFFParameters:
         # Fit exchange pre-factors (and potentially exponents, depending on
         # value of self.fit_bii)
         self.component = 0 
+        self.components_to_fit.append(self.component)
         ff_energy += self.fit_component_parameters()
+
+        self.perform_tests()
 
         # Once exponents are set, can compute the drude oscillator energy that
         # will later be needed for induction and dhf components
@@ -391,13 +405,15 @@ class FitFFParameters:
             else:
                 self.fit_bii = False
             self.component = i
+            self.components_to_fit.append(self.component)
             ff_energy += self.fit_component_parameters()
 
         # Compute the dispersion energy and output to file; parameters may not
         # be fit here
         self.component = 4
+        self.components_to_fit.append(self.component)
         #if self.fit_dispersion and self.anisotropic_atomtypes:
-        if not self.fit_isotropic_dispersion:
+        if not self.scale_isotropic_dispersion:
             # Subtract one free parameter per atomtype; a0 is constrained to
             # be the input (isotropic) cn coefficient
             self.default_n_isotropic_params -= 1
@@ -413,6 +429,7 @@ class FitFFParameters:
                 #self.fit_bii = True
                 pass
             self.component = 5
+            self.components_to_fit.append(self.component)
             self.qm_energy[5] = self.qm_energy[6] - ff_energy
             ff_energy += self.fit_component_parameters()
 
@@ -426,6 +443,7 @@ class FitFFParameters:
         self.weighted_rms_error = self.calc_rmse(ff_energy, cutoff=self.weighted_rmse_cutoff)
         self.weighted_absolute_error = self.calc_mse(ff_energy, cutoff=self.weighted_rmse_cutoff)
         self.write_output_file()
+        self.write_constraints_file()
 
         print
         print '============================================'
@@ -438,124 +456,34 @@ class FitFFParameters:
 
 
 ####################################################################################################    
-    def read_energy_file(self):
-        '''Read in contents of the qm energy file, creating arrays
-        to store the qm energy and xyz coordinates of each data point in the
-        file.
-
-        Parameters
-        ----------
-        None, aside from implicit dependence on energy_file
-
-        Returns
-        -------
-        None, though initializes values for the following class variables:
-        natoms[1,2] : int
-            Number of atoms in each monomer.
-        atoms[1,2] : list
-            Atomtype names for each atom in monomer.
-        ndatpts : int
-            Number of dimer configurations to fit.
-        xyz[1,2] : 3darray (ndatpts x natoms[1,2] x 3)
-            Cartesian positions for each atom in each monomer.
-        qm_energy : 2darray (ncomponents x ndatpts)
-            QM energies for each component (exchange etc.) and each dimer
-            configuration.
-        r12 : ndarray
-            Interatomic distances between all atom pairs i and j in
-            monomers 1 and 2, respectively.
-        atomtypes : list
-            List of all unique atomtypes read in through the QM energy file.
-
+    def read_settings(self,settings_files,kwargs):
         '''
-        print 'Reading in information from the QM Energy file.'
+        '''
 
-        try:
-            with open(self.energy_file,'r') as f:
-                lines = [line.split() for line in f.readlines()]
+        # Read in settings from settings file(s) and any kwargs directly
+        # passed by the user
+        config = io.Settings()
+        self.settings = config.getSettings(settings_files)
+        self.settings.update(kwargs)
 
-            # Number of atoms for each monomer
-            self.natoms1 = int(lines[0][0])
-            self.natoms2 = int(lines[self.natoms1+1][0])
+        # Process any 'meta settings' the user might have declared, and
+        # check to make sure all essential configuration settings have been
+        # declared
+        pointer_settings = config.processSettings()
 
-        except ValueError:
-            print 'Error in reading the QM energy file.'
-            print 'Did you switch the order of the parameter and energy files?\n'
-            raise
-        else:
-            # Obtain element names from energy file
-            self.atoms1 = [ lines[i][0] for i in xrange(1,self.natoms1+1)]
-            self.atoms2 = [ lines[i][0] for i in xrange(self.natoms1+2,self.natoms1+self.natoms2+2)]
+        # Add all settings into the POInter namespace
+        for k,v in pointer_settings.items():
+            setattr(self,k,v)
 
-            if self.ignorecase:
-                self.atoms1 = [ atom.upper() for atom in self.atoms1 ]
-                self.atoms2 = [ atom.upper() for atom in self.atoms2 ]
-
-            # Obtain geometry arrays from energy_file
-            nlines = len(lines)
-            self.ndatpts = lines.count([]) # count number of blank lines
-            self.xyz1 = np.zeros((self.ndatpts,self.natoms1,3))
-            self.xyz2 = np.zeros((self.ndatpts,self.natoms2,3))
-            self.qm_energy = [ [] for i in xrange(self.ncomponents)]
-            for i in xrange(self.ndatpts):
-                # Monomer 1 geometry array:
-                for j in xrange(self.natoms1):
-                    k = i*nlines/self.ndatpts+j+1
-                    self.xyz1[i,j,:] = np.array([float(lines[k][l]) for l in xrange(1,4)])
-                # Monomer 2 geometry array:
-                for j in xrange(self.natoms2):
-                    k = i*nlines/self.ndatpts+j+self.natoms1+2
-                    self.xyz2[i,j,:] = np.array([float(lines[k][l]) for l in xrange(1,4)])
-
-                # QM Energy array:
-                j = i*nlines/self.ndatpts+self.natoms1+self.natoms2+2
-
-                self.qm_energy[0].append(float(lines[j+1][1])) # exchange 
-                self.qm_energy[1].append(float(lines[j][1])) # electrostatics
-                self.qm_energy[2].append(float(lines[j+4][1])+\
-                                          float(lines[j+5][1])) # induction
-                self.qm_energy[3].append(float(lines[j+17][1])) # dhf
-                self.qm_energy[4].append(float(lines[j+7][1])+\
-                                          float(lines[j+9][1])) # dispersion
-                self.qm_energy[6].append(float(lines[j+12][1])) # E1tot+E2tot
-
-            self.qm_energy = np.array([np.array(i) for i in self.qm_energy])
-
-            # Use xyz1 and xyz2 arrays to compute the r array
-            self.r12 = (self.xyz1[:,:,np.newaxis,:] - self.xyz2[:,np.newaxis,:,:])**2 
-            self.r12 = np.sqrt(np.sum(self.r12,axis=-1))
-            self.r12 = np.swapaxes(np.swapaxes(self.r12,0,2),0,1)
-
-
-            # Add dhf energy to E1tot+E2tot to get the total interaction
-            # energy:
-            self.qm_energy[6] = self.qm_energy[3] + self.qm_energy[6]
-
-            # Convert QM energies to Hartree from mH
-            self.qm_energy /= 1000
-
-            # Construct a list of all atoms present in the qm energy file
-            self.atomtypes = set()
-            for xyz in self.atoms1+self.atoms2:
-                self.atomtypes.add(xyz)
-            self.atomtypes = list(self.atomtypes)
+        print config
 
         return
 ####################################################################################################    
 
 
 ####################################################################################################    
-    def read_param_file(self):
-        '''Read in hard constraints and parametesr from param_file.
-        
-        Parameters
-        ----------
-        None, aside from implicit dependence on param_file
-
-        Returns
-        -------
-        None, though initializes values for the following class variables:
-
+    def read_params(self):
+        '''
         Aparams : list of lists (ncomponents x nparams)
             Aij parameters for each energy component; nparams is variable and
             depends on how many anisotropic parameters have been read in for
@@ -576,7 +504,7 @@ class FitFFParameters:
             Cii parameters for each atom in each monomer.
         drude_charges[1,2] : list
             Drude charges for each atom in each monomer.
-        fixed_atomtypes : list
+        constrained_atomtypes : list
             Atomtypes with hard constraints for A parameters.
         multipole_file[1,2]
             Name input file containing multipole moments for each monomer.
@@ -584,358 +512,543 @@ class FitFFParameters:
             Weighting parameter; mu value in Fermi-Dirac function.
         eff_kt
             Weighting parameter; kt value in Fermi-Dirac function.
-
         '''
-        print 'Reading in information from the parameter file.'
 
-        # Initialize arrays for A,B,C parameters as well as charges
-        self.Aparams = [ ] # 4 components; exch, elst, ind, dhf
-        self.exponents = {}
-        self.induction_exponents = {}
-        self.Cparams = {}
-        self.Dparams = {}
-        self.anisotropic_atomtypes = []
-        self.anisotropic_symmetries = {}
-        self.drude_charges1 = []
-        self.drude_charges2 = []
-        self.springcon1 = []
-        self.springcon2 = []
+        # Prepare select POInter instance variables for use in io.Parameters
+        kwargs = {}
+        for kw in ['ignorecase','cij_combination_rule','constrained_atomtypes',
+                   'springcon','separate_induction_exponents']:
+            kwargs[kw] = self.__dict__[kw]
 
-        # Initialize list of all hard constraints
-        self.fixed_atomtypes = {}
+        params = io.Parameters(self.mon1,self.mon2,self.inputdir,**kwargs)
+        params.readParameters() 
 
-        # Read in force field parameters
-        with open(self.param_file,'r') as f:
-
-            # Read in any changes to default parameters:
-            f.readline()
-            line = f.readline().split()
-            while len(line) > 0:
-                settyp = type(getattr(self,line[0]))
-                if settyp == bool and line[1].lower() == 'false':
-                    setattr(self,line[0],False)
-                else:
-                    setattr(self,line[0],settyp(line[1]))
-                line = f.readline().split()
-
-            # Ensure settings read in aren't mutually exclusive
-            atomtype_err = 'fit_universal_k and fit_atomtype_k cannot both be set to True!'
-            assert not (self.fit_universal_k and self.fit_atomtype_k), atomtype_err
-
-            if self.functional_form == 'lennard-jones':
-                # Make sure we don't try and fit exponents, and that the
-                # 'residual energy' (which in this case is the total energy
-                # minus hard constraints) is being fit
-                self.fit_bii = True
-                self.fit_residuals = True
-                self.slater_correction = False
-                self.harmonic_constraints = False
-
-            # Read A parameters from file:
-            #   Order is: Exchange, Electrostatics, Induction, DHF,
-            #   (Dispersion), (Residuals)
-            error = '''Atomtypes need to be defined in the same order and with
-            the same atomtypes for each energy type (exchange, electrostatics,
-            induction, dhf. Please fix your input file.'''
-            error1 = 'Exchange parameters should be read in first.'
-            error2 = 'fit_dispersion has been set to True, but dispersion parameters not found here.'
-            error3 = 'fit_residuals has been set to True, but residual parameters not found here.'
-            f.readline()
-            line = f.readline().split()
-            assert line[0] == 'EXCHANGE', error1
-            line = f.readline().split()
-            # Read exchange parameters to determine number of fixed atom types
-            count = 0
-            max_count = 0
-            while line[0] != 'ELECTROSTATICS':
-                atom = line[0].split('(')[0]
-                if atom not in self.fixed_atomtypes:
-                    count = max_count
-                    self.fixed_atomtypes[atom] = count
-                    max_count += 1
-                else:
-                    count = self.fixed_atomtypes[atom]
-                #self.fixed_atomtypes[line[0]] = count
-                self.Aparams.append([[] for _ in xrange(self.ncomponents)])
-                self.Aparams[count][0].append([float(i) for i in line[1:]])
-                line = f.readline().split()
-                #count += 1
-            nfixed = max_count
-            # Electrostatic parameters
-            assert line[0] == 'ELECTROSTATICS', error
-            line = f.readline().split()
-            count = 0
-            while line[0] != 'INDUCTION':
-                atom = line[0].split('(')[0]
-                assert self.fixed_atomtypes.has_key(atom), error
-                count = self.fixed_atomtypes[atom]
-                self.Aparams[count][1].append([float(i) for i in line[1:]])
-                line = f.readline().split()
-            # Induction parameters
-            assert line[0] == 'INDUCTION', error
-            line = f.readline().split()
-            count = 0
-            while line[0] != 'DHF':
-                atom = line[0].split('(')[0]
-                assert self.fixed_atomtypes.has_key(atom), error
-                count = self.fixed_atomtypes[atom]
-                self.Aparams[count][2].append([float(i) for i in line[1:]])
-                line = f.readline().split()
-            # DHF parameters
-            assert line[0] == 'DHF', error
-            line = f.readline().split()
-            if self.fit_dispersion:
-                flag = 'DISPERSION'
-            elif self.fit_residuals:
-                flag = 'RESIDUALS'
-            else:
-                flag = ''
-            while line and line[0] != flag:
-                atom = line[0].split('(')[0]
-                assert self.fixed_atomtypes.has_key(atom), error
-                count = self.fixed_atomtypes[atom]
-                self.Aparams[count][3].append([float(i) for i in line[1:]])
-                line = f.readline().split()
-            if self.fit_dispersion:
-                # Dispersion parameters
-                assert line[0] == 'DISPERSION', error2
-                line = f.readline().split()
-                if self.fit_residuals:
-                    flag = 'RESIDUALS'
-                else:
-                    flag = ''
-                while line and line[0] != flag:
-                    atom = line[0].split('(')[0]
-                    assert self.fixed_atomtypes.has_key(atom), error
-                    count = self.fixed_atomtypes[atom]
-                    self.Aparams[count][4].append([float(i) for i in line[1:]])
-                    line = f.readline().split()
-            else:
-                for atom in self.fixed_atomtypes:
-                    count = self.fixed_atomtypes[atom]
-                    # Unscaled dispersion parameters being used; set scale
-                    # factor to 1.0 for each atomtype
-                    self.Aparams[count][4].append([1.0])
-
-            if self.fit_residuals:
-                assert line[0] == 'RESIDUALS', error3
-                line = f.readline().split()
-                while line and line[0] != '':
-                    atom = line[0].split('(')[0]
-                    assert self.fixed_atomtypes.has_key(atom), error
-                    count = self.fixed_atomtypes[atom]
-                    self.Aparams[count][5].append([float(i) for i in line[1:]])
-                    line = f.readline().split()
-
-            # Read in anisotropic atomtypes
-            line = f.readline()
-            while True:
-                atom = f.readline().split()
-                if atom ==[]:
-                    break
-                self.anisotropic_atomtypes.append(atom[0])
-                self.anisotropic_symmetries[atom[0]] = atom[1:]
-                if not atom[1:]: #make sure symmetry elements are actually declared
-                    print \
-                    'You must specify which spherical harmonic expansion terms you wish to include for anisotropic atomtype "'\
-                    +atom[0]+'".' 
-                    sys.exit()
-
-            f.readline()
-            f.readline()
-            f.readline()
-            line = f.readline().split()
-
-            # Read in coordinate axes for each anisotropic atom. Ordering is
-            # to list axes alphabetically (i.e. self.anisotropic_axes1 is
-            # ordered x axis first, followed by the z axis.)
-            self.anisotropic_axes1 = [ [ [],[] ] for i in xrange(self.natoms1)]
-            self.anisotropic_axes2 = [ [ [],[] ] for i in xrange(self.natoms2)]
-            # Read coordinate axes in for monomer 1
-            while line[0:2] != ['monomer','2']: # monomer 1 axis definitions
-                iatom = int(line[0])
-                iaxis = 0 if line[1] == 'z' else 1 # list x and z axes seperately
-                if self.anisotropic_axes1[iatom][iaxis] != []:
-                    print 'The '+line[1]+' axis for atom '+line[0]+\
-                            ' in monomer 1 has already been specified.'
-                    print 'Please only use one axis specification line per axis per atom.'
-                    sys.exit()
-                else:
-                    self.anisotropic_axes1[iatom][iaxis] = [ int(i) for i in line[2:] ]
-                line = f.readline().split()
-            # Read coordinate axes in for monomer 2
-            line = f.readline().split()
-            while line != []:
-                iatom = int(line[0])
-                iaxis = 0 if line[1] == 'z' else 1 # list x and z axes seperately
-                if self.anisotropic_axes2[iatom][iaxis] != []:
-                    print 'The '+line[1]+' axis for atom '+line[0]+\
-                            ' in monomer 2 has already been specified.'
-                    print 'Please only use one axis specification line per axis per atom.'
-                    sys.exit()
-                else:
-                    self.anisotropic_axes2[iatom][iaxis] = [ int(i) for i in line[2:] ]
-                line = f.readline().split()
-
-            # Read exponents (B parameters) from file:
-            f.readline()
-            line = f.readline().split()
-            while len(line) > 0:
-                atom = line[0]
-                bi = [float(i) for i in line[1:]]
-                if self.exponents.has_key(atom) and \
-                        np.all(np.array(self.exponents[atom]) - np.array(bi) ):
-                    error_msg = 'Multiple exponents for atomtype '+atom+\
-                    ' have been given! Make sure each atomtype has only one set of B parameters.'
-                    sys.exit(error_msg)
-                else:
-                    self.exponents[atom] = bi
-                line = f.readline().split()
-
-            # If separately specified, read in induction exponents (Bind parameters) from file:
-            if self.separate_induction_exponents:
-                f.readline()
-                line = f.readline().split()
-                while len(line) > 0:
-                    atom = line[0]
-                    bi = [float(i) for i in line[1:]]
-                    if self.induction_exponents.has_key(atom) and \
-                            np.all(self.induction_exponents[atom] - bi ):
-                        error_msg = 'Multiple induction exponents for atomtype '+atom+\
-                        ' have been given! Make sure each atomtype has only one set of Bind parameters.'
-                        sys.exit(error_msg)
-                    else:
-                        self.induction_exponents[atom] = bi
-                    line = f.readline().split()
-
-                # Ensure that the number of exponents doesn't differ between
-                # regular exponents and induction exponents
-                for k, v in self.exponents.items():
-                    assert len(v) == len(self.induction_exponents[k]),\
-                        'The number of induction exponents for atomtype '\
-                        + str(k) + \
-                        ' must match the number of regular exponents for that atomtype!'
-
-            # Read dispersion coefficients (Cn parameters) from file:
-            f.readline()
-            line = f.readline().split()
-
-            # Read in Cii parameters and convert to Ci parameters. For now,
-            # only a geometric mean combination rule seems appropriate for
-            # dispersion parameters, so we take a sqrt here.
-            assert self.cij_combination_rule == 'geometric'
-            while len(line) > 0:
-                # Cn parameters are read in as Cii parameters; to extract Ci
-                # parameters, we need to take the square root of Cii
-                atom = line[0]
-                ci = np.sqrt([float(i) for i in line[1:]])
-            #for i,atom in enumerate(all_atoms):
-                if self.Cparams.has_key(atom) and \
-                        np.all(self.Cparams[atom] - ci ):
-                    error_msg = 'Multiple Cn parameters for atomtype '+atom+\
-                    ' have been given! Make sure each atomtype has only one set of C parameters.'
-                    sys.exit(error_msg)
-                else:
-                    self.Cparams[atom] = ci
-                line = f.readline().split()
-
-            if self.fit_universal_k or self.fit_atomtype_k:
-                f.readline()
-                # Read in D parameters
-                line = f.readline().split()
-                while len(line) > 0:
-                    atom = line[0]
-                    di = [float(i) for i in line[1:]]
-                    if self.Dparams.has_key(atom) and \
-                            np.all(self.Dparams[atom] - di ):
-                        error_msg = 'Multiple sets of D parameters for atomtype '+atom+\
-                        ' have been given! Make sure each atomtype has only one set of D parameters.'
-                        sys.exit(error_msg)
-                    self.Dparams[atom] = di
-                    line = f.readline().split()
-                #f.readline()
-
-            # Ensure exponents and dispersion parameters have been given for
-            # each atomtype
-            for atom in self.atomtypes:
-                if not self.Cparams.has_key(atom):
-                    print '!!!!!!!!!!!'
-                    print 'Dispersion parameters (Cn) must be given for all atomtypes. ' \
-                    +  'Please provide Cn coefficients for the following atomtype: ' , atom
-                    print '!!!!!!!!!!!'
-                    sys.exit('Exiting.')
-                if not self.exponents.has_key(atom):
-                    print '!!!!!!!!!!!'
-                    print 'Exponents (B parameters) must be given for all atomtypes. ' \
-                    +  'Please provide B coefficients for the following atomtype: ' , atom
-                    print '!!!!!!!!!!!'
-                    sys.exit('Exiting.')
-                if self.separate_induction_exponents and not self.induction_exponents.has_key(atom):
-                    print '!!!!!!!!!!!'
-                    print 'Induction exponents (Bind parameters) must be given for all atomtypes. ' \
-                    +  'Please provide Bind coefficients for the following atomtype: ' , atom
-                    print '!!!!!!!!!!!'
-                    sys.exit('Exiting.')
-
-            # Read multipole file names
-            f.readline()
-            f.readline()
-            self.multipole_file1 = f.readline().strip('\n')
-            f.readline()
-            self.multipole_file2 = f.readline().strip('\n')
-
-            # Read drude oscillator charges:
-            f.readline()
-            f.readline()
-            f.readline()
-            for i in xrange(self.natoms1):
-                line = f.readline().split()[1:]
-                self.drude_charges1.append(float(line[0]))
-                if self.anisotropic_drudes:
-                    self.springcon1.append([float(j) for j in line[1:4]])
-                else:
-                    self.springcon1.append([3*float(line[1])])
-                ## if self.induction_damping_type == 'Tang-Toennies' \
-                ##         and self.separate_induction_exponents:
-                ##     self.induction_exponents1.append(float(line[4]))
-            self.drude_charges1 = np.array(self.drude_charges1)
-            self.springcon1 = np.array(self.springcon1)
-            #self.induction_exponents1 = np.array(self.induction_exponents1)
-            f.readline()
-            for i in xrange(self.natoms2):
-                line = f.readline().split()[1:]
-                self.drude_charges2.append(float(line[0]))
-                if self.anisotropic_drudes:
-                    self.springcon2.append([float(j) for j in line[1:4]])
-                else:
-                    self.springcon2.append([3*float(line[1])])
-            self.drude_charges2 = np.array(self.drude_charges2)
-            self.springcon2 = np.array(self.springcon2)
-
-            # Read parameters for the weighting function, namely eff_mu and eff_kt
-            # charges):
-            f.readline()
-            f.readline()
-            self.eff_mu = float(f.readline().split()[1])
-            self.eff_kt = float(f.readline().split()[1])
-
-        # Create params dictionary of dictionaries
-        self.params = {}
-        for atom in self.fixed_atomtypes:
-            i = self.fixed_atomtypes[atom]
-            self.params[atom] = []
-            for ib, b in enumerate(self.exponents[atom]):
-                atom_dic = {}
-                atom_dic['A'] = [ j[ib][0] if j else None for j in self.Aparams[i] ]
-                atom_dic['aniso'] = [ j[ib][1:] if j else [] for j in self.Aparams[i] ]
-                atom_dic['B'] = b
-                atom_dic['C'] = self.Cparams[atom]
-                if self.separate_induction_exponents:
-                    atom_dic['Bind'] = self.induction_exponents[atom][ib]
-                self.params[atom].append(atom_dic)
+        # Update class instance with dictionary variables identified in params
+        self.__dict__.update(params.__dict__)
 
         return
 ####################################################################################################    
+
+
+####################################################################################################    
+    def read_energies(self):
+        '''
+        '''
+
+        # Prepare select POInter instance variables for use in io.Energies
+        kwargs = {}
+        for kw in ['ignorecase','ncomponents','scale_weighting_temperature']:
+            kwargs[kw] = self.__dict__[kw]
+
+        energies = io.Energies(**kwargs)
+        energies.readEnergies(self.energy_file)
+
+        #Update class instance with dictionary variables from Energies
+        self.__dict__.update(energies.__dict__)
+
+        return
+####################################################################################################    
+
+
+## ####################################################################################################    
+##     def read_energy_file(self):
+##         '''Read in contents of the qm energy file, creating arrays
+##         to store the qm energy and xyz coordinates of each data point in the
+##         file.
+## 
+##         Parameters
+##         ----------
+##         None, aside from implicit dependence on energy_file
+## 
+##         Returns
+##         -------
+##         None, though initializes values for the following class variables:
+##         natoms[1,2] : int
+##             Number of atoms in each monomer.
+##         atoms[1,2] : list
+##             Atomtype names for each atom in monomer.
+##         ndatpts : int
+##             Number of dimer configurations to fit.
+##         xyz[1,2] : 3darray (ndatpts x natoms[1,2] x 3)
+##             Cartesian positions for each atom in each monomer.
+##         qm_energy : 2darray (ncomponents x ndatpts)
+##             QM energies for each component (exchange etc.) and each dimer
+##             configuration.
+##         r12 : ndarray
+##             Interatomic distances between all atom pairs i and j in
+##             monomers 1 and 2, respectively.
+##         atomtypes : list
+##             List of all unique atomtypes read in through the QM energy file.
+## 
+##         '''
+##         print 'Reading in information from the QM Energy file.'
+## 
+##         try:
+##             with open(self.energy_file,'r') as f:
+##                 lines = [line.split() for line in f.readlines()]
+## 
+##             # Number of atoms for each monomer
+##             self.natoms1 = int(lines[0][0])
+##             self.natoms2 = int(lines[self.natoms1+1][0])
+## 
+##         except ValueError:
+##             print 'Error in reading the QM energy file.'
+##             print 'Did you switch the order of the parameter and energy files?\n'
+##             raise
+##         else:
+##             # Obtain element names from energy file
+##             self.atoms1 = [ lines[i][0] for i in xrange(1,self.natoms1+1)]
+##             self.atoms2 = [ lines[i][0] for i in xrange(self.natoms1+2,self.natoms1+self.natoms2+2)]
+## 
+##             if self.ignorecase:
+##                 self.atoms1 = [ atom.upper() for atom in self.atoms1 ]
+##                 self.atoms2 = [ atom.upper() for atom in self.atoms2 ]
+## 
+##             # Obtain geometry arrays from energy_file
+##             nlines = len(lines)
+##             self.ndatpts = lines.count([]) # count number of blank lines
+##             self.xyz1 = np.zeros((self.ndatpts,self.natoms1,3))
+##             self.xyz2 = np.zeros((self.ndatpts,self.natoms2,3))
+##             self.qm_energy = [ [] for i in xrange(self.ncomponents)]
+##             for i in xrange(self.ndatpts):
+##                 # Monomer 1 geometry array:
+##                 for j in xrange(self.natoms1):
+##                     k = i*nlines/self.ndatpts+j+1
+##                     self.xyz1[i,j,:] = np.array([float(lines[k][l]) for l in xrange(1,4)])
+##                 # Monomer 2 geometry array:
+##                 for j in xrange(self.natoms2):
+##                     k = i*nlines/self.ndatpts+j+self.natoms1+2
+##                     self.xyz2[i,j,:] = np.array([float(lines[k][l]) for l in xrange(1,4)])
+## 
+##                 # QM Energy array:
+##                 j = i*nlines/self.ndatpts+self.natoms1+self.natoms2+2
+## 
+##                 self.qm_energy[0].append(float(lines[j+1][1])) # exchange 
+##                 self.qm_energy[1].append(float(lines[j][1])) # electrostatics
+##                 self.qm_energy[2].append(float(lines[j+4][1])+\
+##                                           float(lines[j+5][1])) # induction
+##                 self.qm_energy[3].append(float(lines[j+17][1])) # dhf
+##                 self.qm_energy[4].append(float(lines[j+7][1])+\
+##                                           float(lines[j+9][1])) # dispersion
+##                 self.qm_energy[6].append(float(lines[j+12][1])) # E1tot+E2tot
+## 
+##             self.qm_energy = np.array([np.array(i) for i in self.qm_energy])
+## 
+##             # Use xyz1 and xyz2 arrays to compute the r array
+##             self.r12 = (self.xyz1[:,:,np.newaxis,:] - self.xyz2[:,np.newaxis,:,:])**2 
+##             self.r12 = np.sqrt(np.sum(self.r12,axis=-1))
+##             self.r12 = np.swapaxes(np.swapaxes(self.r12,0,2),0,1)
+## 
+## 
+##             # Add dhf energy to E1tot+E2tot to get the total interaction
+##             # energy:
+##             self.qm_energy[6] = self.qm_energy[3] + self.qm_energy[6]
+## 
+##             # Convert QM energies to Hartree from mH
+##             self.qm_energy /= 1000
+## 
+##             # Construct a list of all atoms present in the qm energy file
+##             self.atomtypes = set()
+##             for xyz in self.atoms1+self.atoms2:
+##                 self.atomtypes.add(xyz)
+##             self.atomtypes = list(self.atomtypes)
+## 
+##         return
+## ####################################################################################################    
+
+
+## ####################################################################################################    
+##     def read_param_file(self):
+##         '''Read in hard constraints and parametesr from param_file.
+##         
+##         Parameters
+##         ----------
+##         None, aside from implicit dependence on param_file
+## 
+##         Returns
+##         -------
+##         None, though initializes values for the following instance variables:
+## 
+##         Aparams : list of lists (ncomponents x nparams)
+##             Aij parameters for each energy component; nparams is variable and
+##             depends on how many anisotropic parameters have been read in for
+##             each atomtype.
+## 
+##         anisotropic_atomtypes : list
+##             Names of all atomtypes to be treated anisotropically.
+##         anisotropic_axes[1,2] : list of lists
+##             Axis specification (in terms of monomer indices) for each
+##             anisotropic atom. Will later be converted to an axis specification
+##             in terms of Cartesian coordinates.
+##         anisotropic_symmetries : dict
+##             For each aisotropic atom, lists which spherical harmonic terms
+##             should be fit.
+##         exponents[1,2] : list
+##             Bii parameters for each atom in each monomer.
+##         Cparams[1,2] : list of lists
+##             Cii parameters for each atom in each monomer.
+##         drude_charges[1,2] : list
+##             Drude charges for each atom in each monomer.
+##         constrained_atomtypes : list
+##             Atomtypes with hard constraints for A parameters.
+##         multipole_file[1,2]
+##             Name input file containing multipole moments for each monomer.
+##         eff_mu : float
+##             Weighting parameter; mu value in Fermi-Dirac function.
+##         eff_kt
+##             Weighting parameter; kt value in Fermi-Dirac function.
+## 
+##         '''
+##         print 'Reading in information from the parameter file.'
+## 
+##         # Initialize arrays for A,B,C parameters as well as charges
+##         self.Aparams = [ ] # 4 components; exch, elst, ind, dhf
+##         self.exponents = {}
+##         self.induction_exponents = {}
+##         self.Cparams = {}
+##         self.Dparams = {}
+##         self.anisotropic_atomtypes = []
+##         self.anisotropic_symmetries = {}
+##         self.drude_charges1 = []
+##         self.drude_charges2 = []
+##         self.springcon1 = []
+##         self.springcon2 = []
+## 
+##         # Initialize list of all hard constraints
+##         self.constrained_atomtypes = {}
+## 
+##         # Read in force field parameters
+##         with open(self.param_file,'r') as f:
+## 
+##             # Read in any changes to default parameters:
+##             f.readline()
+##             line = f.readline().split()
+##             while len(line) > 0:
+##                 settyp = type(getattr(self,line[0]))
+##                 if settyp == bool and line[1].lower() == 'false':
+##                     setattr(self,line[0],False)
+##                 else:
+##                     setattr(self,line[0],settyp(line[1]))
+##                 line = f.readline().split()
+## 
+##             # Ensure settings read in aren't mutually exclusive
+##             atomtype_err = 'fit_universal_k and fit_atomtype_k cannot both be set to True!'
+##             assert not (self.fit_universal_k and self.fit_atomtype_k), atomtype_err
+## 
+##             if self.functional_form == 'lennard-jones':
+##                 # Make sure we don't try and fit exponents, and that the
+##                 # 'residual energy' (which in this case is the total energy
+##                 # minus hard constraints) is being fit
+##                 self.fit_bii = True
+##                 self.fit_residuals = True
+##                 self.slater_correction = False
+##                 self.harmonic_constraints = False
+## 
+##             # Read A parameters from file:
+##             #   Order is: Exchange, Electrostatics, Induction, DHF,
+##             #   (Dispersion), (Residuals)
+##             error = '''Atomtypes need to be defined in the same order and with
+##             the same atomtypes for each energy type (exchange, electrostatics,
+##             induction, dhf. Please fix your input file.'''
+##             error1 = 'Exchange parameters should be read in first.'
+##             error2 = 'fit_dispersion has been set to True, but dispersion parameters not found here.'
+##             error3 = 'fit_residuals has been set to True, but residual parameters not found here.'
+##             f.readline()
+##             line = f.readline().split()
+##             assert line[0] == 'EXCHANGE', error1
+##             line = f.readline().split()
+##             # Read exchange parameters to determine number of fixed atom types
+##             count = 0
+##             max_count = 0
+##             while line[0] != 'ELECTROSTATICS':
+##                 atom = line[0].split('(')[0]
+##                 if atom not in self.constrained_atomtypes:
+##                     count = max_count
+##                     self.constrained_atomtypes[atom] = count
+##                     max_count += 1
+##                 else:
+##                     count = self.constrained_atomtypes[atom]
+##                 #self.constrained_atomtypes[line[0]] = count
+##                 self.Aparams.append([[] for _ in xrange(self.ncomponents)])
+##                 self.Aparams[count][0].append([float(i) for i in line[1:]])
+##                 line = f.readline().split()
+##                 #count += 1
+##             nfixed = max_count
+##             # Electrostatic parameters
+##             assert line[0] == 'ELECTROSTATICS', error
+##             line = f.readline().split()
+##             count = 0
+##             while line[0] != 'INDUCTION':
+##                 atom = line[0].split('(')[0]
+##                 assert self.constrained_atomtypes.has_key(atom), error
+##                 count = self.constrained_atomtypes[atom]
+##                 self.Aparams[count][1].append([float(i) for i in line[1:]])
+##                 line = f.readline().split()
+##             # Induction parameters
+##             assert line[0] == 'INDUCTION', error
+##             line = f.readline().split()
+##             count = 0
+##             while line[0] != 'DHF':
+##                 atom = line[0].split('(')[0]
+##                 assert self.constrained_atomtypes.has_key(atom), error
+##                 count = self.constrained_atomtypes[atom]
+##                 self.Aparams[count][2].append([float(i) for i in line[1:]])
+##                 line = f.readline().split()
+##             # DHF parameters
+##             assert line[0] == 'DHF', error
+##             line = f.readline().split()
+##             if self.fit_dispersion:
+##                 flag = 'DISPERSION'
+##             elif self.fit_residuals:
+##                 flag = 'RESIDUALS'
+##             else:
+##                 flag = ''
+##             while line and line[0] != flag:
+##                 atom = line[0].split('(')[0]
+##                 assert self.constrained_atomtypes.has_key(atom), error
+##                 count = self.constrained_atomtypes[atom]
+##                 self.Aparams[count][3].append([float(i) for i in line[1:]])
+##                 line = f.readline().split()
+##             if self.fit_dispersion:
+##                 # Dispersion parameters
+##                 assert line[0] == 'DISPERSION', error2
+##                 line = f.readline().split()
+##                 if self.fit_residuals:
+##                     flag = 'RESIDUALS'
+##                 else:
+##                     flag = ''
+##                 while line and line[0] != flag:
+##                     atom = line[0].split('(')[0]
+##                     assert self.constrained_atomtypes.has_key(atom), error
+##                     count = self.constrained_atomtypes[atom]
+##                     self.Aparams[count][4].append([float(i) for i in line[1:]])
+##                     line = f.readline().split()
+##             else:
+##                 for atom in self.constrained_atomtypes:
+##                     count = self.constrained_atomtypes[atom]
+##                     # Unscaled dispersion parameters being used; set scale
+##                     # factor to 1.0 for each atomtype
+##                     self.Aparams[count][4].append([1.0])
+## 
+##             if self.fit_residuals:
+##                 assert line[0] == 'RESIDUALS', error3
+##                 line = f.readline().split()
+##                 while line and line[0] != '':
+##                     atom = line[0].split('(')[0]
+##                     assert self.constrained_atomtypes.has_key(atom), error
+##                     count = self.constrained_atomtypes[atom]
+##                     self.Aparams[count][5].append([float(i) for i in line[1:]])
+##                     line = f.readline().split()
+## 
+##             # Read in anisotropic atomtypes
+##             line = f.readline()
+##             while True:
+##                 atom = f.readline().split()
+##                 if atom ==[]:
+##                     break
+##                 self.anisotropic_atomtypes.append(atom[0])
+##                 self.anisotropic_symmetries[atom[0]] = atom[1:]
+##                 if not atom[1:]: #make sure symmetry elements are actually declared
+##                     print \
+##                     'You must specify which spherical harmonic expansion terms you wish to include for anisotropic atomtype "'\
+##                     +atom[0]+'".' 
+##                     sys.exit()
+## 
+##             f.readline()
+##             f.readline()
+##             f.readline()
+##             line = f.readline().split()
+## 
+##             # Read in coordinate axes for each anisotropic atom. Ordering is
+##             # to list axes alphabetically (i.e. self.anisotropic_axes1 is
+##             # ordered x axis first, followed by the z axis.)
+##             self.anisotropic_axes1 = [ [ [],[] ] for i in xrange(self.natoms1)]
+##             self.anisotropic_axes2 = [ [ [],[] ] for i in xrange(self.natoms2)]
+##             # Read coordinate axes in for monomer 1
+##             while line[0:2] != ['monomer','2']: # monomer 1 axis definitions
+##                 iatom = int(line[0])
+##                 iaxis = 0 if line[1] == 'z' else 1 # list x and z axes seperately
+##                 if self.anisotropic_axes1[iatom][iaxis] != []:
+##                     print 'The '+line[1]+' axis for atom '+line[0]+\
+##                             ' in monomer 1 has already been specified.'
+##                     print 'Please only use one axis specification line per axis per atom.'
+##                     sys.exit()
+##                 else:
+##                     self.anisotropic_axes1[iatom][iaxis] = [ int(i) for i in line[2:] ]
+##                 line = f.readline().split()
+##             # Read coordinate axes in for monomer 2
+##             line = f.readline().split()
+##             while line != []:
+##                 iatom = int(line[0])
+##                 iaxis = 0 if line[1] == 'z' else 1 # list x and z axes seperately
+##                 if self.anisotropic_axes2[iatom][iaxis] != []:
+##                     print 'The '+line[1]+' axis for atom '+line[0]+\
+##                             ' in monomer 2 has already been specified.'
+##                     print 'Please only use one axis specification line per axis per atom.'
+##                     sys.exit()
+##                 else:
+##                     self.anisotropic_axes2[iatom][iaxis] = [ int(i) for i in line[2:] ]
+##                 line = f.readline().split()
+## 
+##             # Read exponents (B parameters) from file:
+##             f.readline()
+##             line = f.readline().split()
+##             while len(line) > 0:
+##                 atom = line[0]
+##                 bi = [float(i) for i in line[1:]]
+##                 if self.exponents.has_key(atom) and \
+##                         np.all(np.array(self.exponents[atom]) - np.array(bi) ):
+##                     error_msg = 'Multiple exponents for atomtype '+atom+\
+##                     ' have been given! Make sure each atomtype has only one set of B parameters.'
+##                     sys.exit(error_msg)
+##                 else:
+##                     self.exponents[atom] = bi
+##                 line = f.readline().split()
+## 
+##             # If separately specified, read in induction exponents (Bind parameters) from file:
+##             if self.separate_induction_exponents:
+##                 f.readline()
+##                 line = f.readline().split()
+##                 while len(line) > 0:
+##                     atom = line[0]
+##                     bi = [float(i) for i in line[1:]]
+##                     if self.induction_exponents.has_key(atom) and \
+##                             np.all(self.induction_exponents[atom] - bi ):
+##                         error_msg = 'Multiple induction exponents for atomtype '+atom+\
+##                         ' have been given! Make sure each atomtype has only one set of Bind parameters.'
+##                         sys.exit(error_msg)
+##                     else:
+##                         self.induction_exponents[atom] = bi
+##                     line = f.readline().split()
+## 
+##                 # Ensure that the number of exponents doesn't differ between
+##                 # regular exponents and induction exponents
+##                 for k, v in self.exponents.items():
+##                     assert len(v) == len(self.induction_exponents[k]),\
+##                         'The number of induction exponents for atomtype '\
+##                         + str(k) + \
+##                         ' must match the number of regular exponents for that atomtype!'
+## 
+##             # Read dispersion coefficients (Cn parameters) from file:
+##             f.readline()
+##             line = f.readline().split()
+## 
+##             # Read in Cii parameters and convert to Ci parameters. For now,
+##             # only a geometric mean combination rule seems appropriate for
+##             # dispersion parameters, so we take a sqrt here.
+##             assert self.cij_combination_rule == 'geometric'
+##             while len(line) > 0:
+##                 # Cn parameters are read in as Cii parameters; to extract Ci
+##                 # parameters, we need to take the square root of Cii
+##                 atom = line[0]
+##                 ci = np.sqrt([float(i) for i in line[1:]])
+##             #for i,atom in enumerate(all_atoms):
+##                 if self.Cparams.has_key(atom) and \
+##                         np.all(self.Cparams[atom] - ci ):
+##                     error_msg = 'Multiple Cn parameters for atomtype '+atom+\
+##                     ' have been given! Make sure each atomtype has only one set of C parameters.'
+##                     sys.exit(error_msg)
+##                 else:
+##                     self.Cparams[atom] = ci
+##                 line = f.readline().split()
+## 
+##             if self.fit_universal_k or self.fit_atomtype_k:
+##                 f.readline()
+##                 # Read in D parameters
+##                 line = f.readline().split()
+##                 while len(line) > 0:
+##                     atom = line[0]
+##                     di = [float(i) for i in line[1:]]
+##                     if self.Dparams.has_key(atom) and \
+##                             np.all(self.Dparams[atom] - di ):
+##                         error_msg = 'Multiple sets of D parameters for atomtype '+atom+\
+##                         ' have been given! Make sure each atomtype has only one set of D parameters.'
+##                         sys.exit(error_msg)
+##                     self.Dparams[atom] = di
+##                     line = f.readline().split()
+##                 #f.readline()
+## 
+##             # Ensure exponents and dispersion parameters have been given for
+##             # each atomtype
+##             for atom in self.atomtypes:
+##                 if not self.Cparams.has_key(atom):
+##                     print '!!!!!!!!!!!'
+##                     print 'Dispersion parameters (Cn) must be given for all atomtypes. ' \
+##                     +  'Please provide Cn coefficients for the following atomtype: ' , atom
+##                     print '!!!!!!!!!!!'
+##                     sys.exit('Exiting.')
+##                 if not self.exponents.has_key(atom):
+##                     print '!!!!!!!!!!!'
+##                     print 'Exponents (B parameters) must be given for all atomtypes. ' \
+##                     +  'Please provide B coefficients for the following atomtype: ' , atom
+##                     print '!!!!!!!!!!!'
+##                     sys.exit('Exiting.')
+##                 if self.separate_induction_exponents and not self.induction_exponents.has_key(atom):
+##                     print '!!!!!!!!!!!'
+##                     print 'Induction exponents (Bind parameters) must be given for all atomtypes. ' \
+##                     +  'Please provide Bind coefficients for the following atomtype: ' , atom
+##                     print '!!!!!!!!!!!'
+##                     sys.exit('Exiting.')
+## 
+##             # Read multipole file names
+##             f.readline()
+##             f.readline()
+##             self.multipole_file1 = f.readline().strip('\n')
+##             f.readline()
+##             self.multipole_file2 = f.readline().strip('\n')
+## 
+##             # Read drude oscillator charges:
+##             f.readline()
+##             f.readline()
+##             f.readline()
+##             for i in xrange(self.natoms1):
+##                 line = f.readline().split()[1:]
+##                 self.drude_charges1.append(float(line[0]))
+##                 if self.anisotropic_drudes:
+##                     self.springcon1.append([float(j) for j in line[1:4]])
+##                 else:
+##                     self.springcon1.append([3*float(line[1])])
+##                 ## if self.induction_damping_type == 'Tang-Toennies' \
+##                 ##         and self.separate_induction_exponents:
+##                 ##     self.induction_exponents1.append(float(line[4]))
+##             self.drude_charges1 = np.array(self.drude_charges1)
+##             self.springcon1 = np.array(self.springcon1)
+##             #self.induction_exponents1 = np.array(self.induction_exponents1)
+##             f.readline()
+##             for i in xrange(self.natoms2):
+##                 line = f.readline().split()[1:]
+##                 self.drude_charges2.append(float(line[0]))
+##                 if self.anisotropic_drudes:
+##                     self.springcon2.append([float(j) for j in line[1:4]])
+##                 else:
+##                     self.springcon2.append([3*float(line[1])])
+##             self.drude_charges2 = np.array(self.drude_charges2)
+##             self.springcon2 = np.array(self.springcon2)
+## 
+##             # Read parameters for the weighting function, namely eff_mu and eff_kt
+##             # charges):
+##             f.readline()
+##             f.readline()
+##             self.eff_mu = float(f.readline().split()[1])
+##             self.eff_kt = float(f.readline().split()[1])
+## 
+##         # Create params dictionary of dictionaries
+##         self.params = {}
+##         for atom in self.constrained_atomtypes:
+##             i = self.constrained_atomtypes[atom]
+##             self.params[atom] = []
+##             for ib, b in enumerate(self.exponents[atom]):
+##                 atom_dic = {}
+##                 atom_dic['A'] = [ j[ib][0] if j else None for j in self.Aparams[i] ]
+##                 atom_dic['aniso'] = [ j[ib][1:] if j else [] for j in self.Aparams[i] ]
+##                 atom_dic['B'] = b
+##                 atom_dic['C'] = self.Cparams[atom]
+##                 if self.separate_induction_exponents:
+##                     atom_dic['Bind'] = self.induction_exponents[atom][ib]
+##                 self.params[atom].append(atom_dic)
+## 
+##         return
+## ####################################################################################################    
 
 
 ####################################################################################################    
@@ -969,8 +1082,8 @@ class FitFFParameters:
         self.save_induction_exponents = self.induction_exponents
 
         # Make sure dispersion fitting options are consistant
-        error = 'You cannot set fit_dispersion False and fit_isotropic_dispersion True.'
-        if self.fit_isotropic_dispersion:
+        error = 'You cannot set fit_dispersion False and scale_isotropic_dispersion True.'
+        if self.scale_isotropic_dispersion:
             assert self.fit_dispersion, error
 
         # Multipole and drude modules treat exponents as an array; save
@@ -978,8 +1091,8 @@ class FitFFParameters:
         self.all_exponents = [ [] for i in xrange(self.natoms1)]
         for i,atom1 in enumerate(self.atoms1):
             for atom2 in self.atoms2:
-                bi = self. exponents[atom1]
-                bj = self. exponents[atom2]
+                bi = self.exponents[atom1]
+                bj = self.exponents[atom2]
                 bij = [ [] for _ in bi ]
                 for ik, bik in enumerate(bi):
                     for bjl in bj:
@@ -997,13 +1110,19 @@ class FitFFParameters:
         if self.ignorecase:
             self.atomtypes = [ atom.upper() for atom in self.atomtypes ]
             self.anisotropic_atomtypes = [ atom.upper() for atom in self.anisotropic_atomtypes ]
-            self.fixed_atomtypes = { key.upper() : value \
-                                for key, value in self.fixed_atomtypes.items() }
+        ##     self.constrained_atomtypes = { key.upper() : value \
+        ##                         for key, value in self.constrained_atomtypes.items() }
+        ## self.isotropic_atomtypes = list(set(self.atomtypes) - set(self.anisotropic_atomtypes))
+        ## self.fit_atomtypes = list(set(self.atomtypes) - \
+        ##         set(self.constrained_atomtypes.keys()))
+        ## self.fit_anisotropic_atomtypes = list(set(self.anisotropic_atomtypes) - \
+        ##                 set(self.constrained_atomtypes.keys()))
+            self.constrained_atomtypes = [atom.upper() for atom in self.constrained_atomtypes ]
         self.isotropic_atomtypes = list(set(self.atomtypes) - set(self.anisotropic_atomtypes))
         self.fit_atomtypes = list(set(self.atomtypes) - \
-                set(self.fixed_atomtypes.keys()))
+                set(self.constrained_atomtypes))
         self.fit_anisotropic_atomtypes = list(set(self.anisotropic_atomtypes) - \
-                        set(self.fixed_atomtypes.keys()))
+                        set(self.constrained_atomtypes))
         self.fit_isotropic_atomtypes = list(set(self.fit_atomtypes) - set(self.fit_anisotropic_atomtypes))
         self.constrained_anisotropic_atoms = list(set(self.anisotropic_atomtypes) - set(self.fit_anisotropic_atomtypes))
 
@@ -1713,10 +1832,7 @@ class FitFFParameters:
         if self.drude_method == 'multipole-gradient':
             print 'Calculating drude oscillator energy using a multipole-gradient method'
             from drude_oscillators import Drudes
-            self.mon1 = self.multipole_file1.split('_')[0]
-            self.mon2 = self.multipole_file2.split('_')[0]
-            d = Drudes(
-                        self.mon1, self.mon2,
+            d = Drudes( self.mon1, self.mon2,
                         self.xyz1, self.xyz2, 
                         self.multipole_file1, self.multipole_file2,
                         self.axes1,self.axes2,
@@ -1849,7 +1965,7 @@ class FitFFParameters:
         n_aiso = self.n_isotropic_params if not self.fit_bii else self.n_isotropic_params - 1
         n_aiso += n_general_params
         if self.component == 4:
-            n_aaniso = n_aiso if self.fit_isotropic_dispersion else n_aiso + 1
+            n_aaniso = n_aiso if self.scale_isotropic_dispersion else n_aiso + 1
         else:
             n_aaniso = n_aiso 
 
@@ -1927,7 +2043,7 @@ class FitFFParameters:
 
         #if self.fit_universal_k and self.component != 4:
         if self.fit_universal_k:
-            if self.component == 4 and not self.fit_isotropic_dispersion:
+            if self.component == 4 and not self.scale_isotropic_dispersion:
                 pass
             else:
                 # Add parameter for K proportionality constant
@@ -2398,7 +2514,7 @@ class FitFFParameters:
                 # For dispersion, get Ai parameters from exchange to calculate
                 # damping
                 Ai_atom1 = self.params[atom1]
-            elif atom1 in self.fixed_atomtypes:
+            elif atom1 in self.constrained_atomtypes:
                 Ai_atom1 = self.params[atom1]
             else:
                 Ai_atom1 = params[param_map[atom1]]
@@ -2419,7 +2535,7 @@ class FitFFParameters:
                 # parameter fitting
                 if self.component == 4:
                     Aj_atom2 = self.params[atom2]
-                elif atom2 in self.fixed_atomtypes:
+                elif atom2 in self.constrained_atomtypes:
                     Aj_atom2 = self.params[atom2]
                 else:
                     Aj_atom2 = params[param_map[atom2]]
@@ -2435,12 +2551,12 @@ class FitFFParameters:
 
                 # For dispersion, get Ci coefficients
                 if self.component == 4:
-                    if atom1 in self.fixed_atomtypes:
+                    if atom1 in self.constrained_atomtypes:
                         # Should only be one set of Cparams per atomtype
                         Ci = self.params[atom1][0]
                     else:
                         Ci = params[param_map[atom1]]
-                    if atom2 in self.fixed_atomtypes:
+                    if atom2 in self.constrained_atomtypes:
                         Cj = self.params[atom2][0]
                     else:
                         Cj = params[param_map[atom2]]
@@ -2611,13 +2727,13 @@ class FitFFParameters:
                 'Exponent fitting not implemented for dispersion'
                 param_dic = {}
                 param_dic['C'] = self.Cparams[atom]
-                if self.fit_isotropic_dispersion:
+                if self.scale_isotropic_dispersion:
                     param_dic['A'] = params[count]
-                    param_dic['aniso'] = params[count+1:count+shift]
+                    param_dic['aniso'] = np.array(params[count+1:count+shift])
                     count += shift
                 else:
                     param_dic['A'] = 1.0
-                    param_dic['aniso'] = params[count:count+shift]
+                    param_dic['aniso'] = np.array(params[count:count+shift])
                     count += shift
 
                 mapped_params[iatom] = param_dic
@@ -2662,7 +2778,7 @@ class FitFFParameters:
                     ianiso_end = ianiso_start + len(self.anisotropic_symmetries[atom])
                     param_dic['aniso'] = params[ianiso_start:ianiso_end]
                 else:
-                    param_dic['aniso'] = []
+                    param_dic['aniso'] = np.array([])
 
                 param_dic['C'] = self.Cparams[atom]
 
@@ -2735,7 +2851,7 @@ class FitFFParameters:
                 a = 1.0 # deal with an edge case where dispersion energy would
                         # go to zero if exchange coefficient was 0
                 Aangular = params1['aniso'][component]
-            elif atom1 in self.fixed_atomtypes:
+            elif atom1 in self.constrained_atomtypes:
                 a = params1['A'][component]
                 Aangular = params1['aniso'][component]
             else:
@@ -2746,7 +2862,7 @@ class FitFFParameters:
             if self.component == 4:
                 ai = 1.0 # deal with an edge case where dispersion energy would
                         # go to zero if exchange coefficient was 0
-            elif atom1 in self.fixed_atomtypes:
+            elif atom1 in self.constrained_atomtypes:
                 ai = params1['A'][component] 
             else:
                 ai = params1['A']
@@ -2756,7 +2872,7 @@ class FitFFParameters:
                 a = 1.0 # deal with an edge case where dispersion energy would
                         # go to zero if exchange coefficient was 0
                 Aangular = params2['aniso'][component]
-            elif atom2 in self.fixed_atomtypes:
+            elif atom2 in self.constrained_atomtypes:
                 a = params2['A'][component]
                 Aangular = params2['aniso'][component]
             else:
@@ -2766,7 +2882,7 @@ class FitFFParameters:
         else: #if isotropic
             if self.component == 4:
                 aj = 1.0
-            elif atom2 in self.fixed_atomtypes:
+            elif atom2 in self.constrained_atomtypes:
                 aj = params2['A'][component] 
             else:
                 aj = params2['A']
@@ -2903,7 +3019,7 @@ class FitFFParameters:
         if self.fit_dispersion:
             if atom1 in self.anisotropic_atomtypes:
                 sph_harm = self.anisotropic_symmetries[atom1]
-                if atom1 in self.fixed_atomtypes:
+                if atom1 in self.constrained_atomtypes:
                     a = params1['A'][self.component]
                     Aangular = params1['aniso'][self.component]
                 else:
@@ -2911,10 +3027,10 @@ class FitFFParameters:
                     Aangular = params1['aniso']
                 ai = functional_forms.get_anisotropic_ai(sph_harm, a,Aangular,rij,theta1,phi1)
             else: #if isotropic
-                ai = params1['A'][self.component] if atom1 in self.fixed_atomtypes else params1['A']
+                ai = params1['A'][self.component] if atom1 in self.constrained_atomtypes else params1['A']
             if atom2 in self.anisotropic_atomtypes:
                 sph_harm = self.anisotropic_symmetries[atom2]
-                if atom2 in self.fixed_atomtypes:
+                if atom2 in self.constrained_atomtypes:
                     a = params2['A'][self.component]
                     Aangular = params2['aniso'][self.component]
                 else:
@@ -2922,7 +3038,7 @@ class FitFFParameters:
                     Aangular = params2['aniso']
                 aj = functional_forms.get_anisotropic_ai(sph_harm, a,Aangular,rij,theta2,phi2)
             else: #if isotropic
-                aj = params2['A'][self.component] if atom2 in self.fixed_atomtypes else params2['A']
+                aj = params2['A'][self.component] if atom2 in self.constrained_atomtypes else params2['A']
         else:
             ai = 1.0
             aj = 1.0
@@ -3128,7 +3244,7 @@ class FitFFParameters:
                 f.write('########################## FF Fitting Summary ###########################\n')
                 f.write(long_break)
                 f.write('Program Version: '+ __version__ + '\n')
-                f.write('Short-range Functional Form: '+str(self.functional_form)+'\n')
+                f.write('Short-range Functional Form: '+str(self.settings['functional_form'])+'\n')
                 f.write('Combination Rules: aij = '+str(self.aij_combination_rule)+'\n')
                 f.write('                   bij = '+str(self.bij_combination_rule)+'\n')
                 f.write('Electrostatic Damping Type: '+str(self.electrostatic_damping_type)+'\n')
@@ -3194,6 +3310,8 @@ class FitFFParameters:
             # Induction Parameters
             elif self.component == 2:
                 f.write('Drude oscillator energy has been calculated using the following method: ' + self.drude_method + '\n')
+                if self.drude_method == 'read':
+                    f.write('Drude energy read from: ' + self.drude_file + '\n')
                 if self.separate_induction_exponents:
                     if self.fit_bii:
                         f.write('Induction Exponents (Optimized):\n')
@@ -3267,7 +3385,7 @@ class FitFFParameters:
                     template='{:5s}'+'{:16.6f}'*2 + '\n'
                     f.write(template.format(name,a,b))
                 f.write('Constrained Atomtypes \n')
-                for atom in self.fixed_atomtypes:
+                for atom in self.constrained_atomtypes:
                     template='{:5s}   '+'{:^16s}'*2+'\n'
                     f.write(template.format('','A','B'))
                     name = atom + '(' + str(0) + ')'
@@ -3275,7 +3393,7 @@ class FitFFParameters:
                     b = self.params[atom][0]['B']
                     template='{:5s}'+'{:16.6f}'*2 + '\n'
                     f.write(template.format(name,a,b))
-                if not self.fixed_atomtypes:
+                if not self.constrained_atomtypes:
                     f.write('  None\n')
             else:
                 fit_list = range(0,4)
@@ -3307,7 +3425,7 @@ class FitFFParameters:
                         f.write('  None\n')
 
                     f.write('Constrained Atomtypes \n')
-                    for atom in self.fixed_atomtypes:
+                    for atom in self.constrained_atomtypes:
                         if atom in self.anisotropic_atomtypes:
                             template='{:5s}   '+'{:^16s}'*(len(self.anisotropic_symmetries[atom])+1)+'\n'
                             args = ['a_' + y for y in self.anisotropic_symmetries[atom] ]
@@ -3326,7 +3444,7 @@ class FitFFParameters:
                                 a = self.params[atom][ib]['A'][self.component]
                                 template='{:5s}'+'{:16.6f}\n'
                                 f.write(template.format(name,a))
-                    if not self.fixed_atomtypes:
+                    if not self.constrained_atomtypes:
                         f.write('  None\n')
 
             if not success:
@@ -3371,11 +3489,118 @@ class FitFFParameters:
         None
 
         '''
-        with open(self.energy_component_file[self.component],'w') as f:
+        with open(self.energy_componen_suffix[self.component],'w') as f:
             f.write('QM Energy\tFF Energy\n')
             for pt in zip(self.qm_energy[self.component],ff_energy):
                 template='{:16.6g}'*2+'\n'
                 f.write(template.format(pt[0],pt[1]))
+
+        return
+####################################################################################################    
+
+
+####################################################################################################    
+    def write_constraints_file(self):
+        '''Write output params to file in json format
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+
+        '''
+        import json
+        output_params = {}
+
+        drude_charges = { k:v for k,v in 
+                            zip(self.atoms1 + self.atoms2,
+                                self.drude_charges1.tolist() +
+                                self.drude_charges2.tolist()) }
+
+
+        output_params = {}
+        for atom in self.atomtypes:
+            for ib in xrange(len(self.exponents[atom])):
+                name = atom + '(' + str(ib) + ')'
+                A = self.params[atom][ib]['A']
+                aniso = self.params[atom][ib]['aniso']
+                try:
+                    aniso = [ an.tolist() for an in aniso ]
+                except AttributeError:
+                    print atom
+                    print aniso
+                    print
+                    print self.params[atom][ib]
+                    raise
+                B = self.params[atom][ib]['B']
+                C = self.params[atom][ib]['C']
+                C = C.tolist()
+                if self.anisotropic_symmetries.has_key(atom):
+                    sph_harm = self.anisotropic_symmetries[atom]
+                else:
+                    sph_harm = []
+                drude_charge = drude_charges[atom]
+                # Write axes shorthand notation as a user FYI
+                comments = []
+                mon = self.mon1 if atom in self.atoms1 else self.mon2
+                atoms = self.atoms1 if atom in self.atoms1 else self.atoms2
+                iatom = atoms.index(atom)
+                comments.append( 'Parameters for the {} atom in the molecule {}, obtained from fitting the {} - {} dimer.'.format(
+                            atom,mon,self.mon1,self.mon2))
+                if atom in self.anisotropic_atomtypes:
+                    if mon == self.mon1:
+                        z = self.anisotropic_axes1[iatom][0]
+                        x = self.anisotropic_axes1[iatom][1]
+                    else:
+                        z = self.anisotropic_axes2[iatom][0]
+                        x = self.anisotropic_axes2[iatom][1]
+                else:
+                    z = []
+                    x = []
+
+                z = [atoms[i] for i in z]
+                x = [atoms[i] for i in x]
+
+
+                axes_string = 'from atom {} to {} {}'
+                if z:
+                    if len(z) > 2:
+                        endpoint = ','.join(z[1:])
+                        z_axes_string = axes_string.format(z[0],'the midpoint of atoms',endpoint)
+                    else:
+                        z_axes_string = axes_string.format(z[0],'atom',z[1])
+                    comments.append('Z-axis defined as the vector {} in molecule {}'.format(
+                                        z_axes_string,mon))
+                else:
+                    comments.append('Z-axis not defined')
+
+                if x:
+                    if len(x) > 2:
+                        endpoint = ','.join(x[1:])
+                        x_axes_string = axes_string.format(x[0],'the midpoint of atoms',endpoint)
+                    else:
+                        x_axes_string = axes_string.format(x[0],'atom',x[1])
+                    comments.append('X-axis defined as the vector {} in molecule {}'.format(
+                                        x_axes_string,mon))
+                else:
+                    comments.append('X-axis not defined')
+
+                component_order = [self.energy_component_names[i] for i in self.components_to_fit]
+
+                values = OrderedDict([
+                            ('params_order' , component_order),
+                            ('A', A), ('aniso', aniso), 
+                            ('B', B), ('C', C), 
+                            ('drude_charge' , drude_charge),
+                            ('sph_harm' , sph_harm),
+                            ('comments' , comments),
+                            ])
+                output_params[name] = values
+
+
+        with open('params.out','w') as f:
+            json.dump(output_params,f, indent=4)
 
         return
 ####################################################################################################    
@@ -3389,9 +3614,37 @@ class FitFFParameters:
         debug.
         '''
 
+        #self.write_constraints_file()
+
+        return
+
+        print 'Calculating drude oscillator energy using a multipole-gradient method'
+        from drude_oscillators import Drudes
+        import sys
+        modulenames = set(sys.modules)&set(globals())
+        allmodules = [sys.modules[name] for name in modulenames]
+        print allmodules
+        #Multipoles()
+        Drudes()
+        d = Drudes( self.mon1, self.mon2,
+                    self.xyz1, self.xyz2, 
+                    self.multipole_file1, self.multipole_file2,
+                    self.axes1,self.axes2,
+                    self.drude_charges1, self.drude_charges2, 
+                    self.springcon1, self.springcon2,
+                    #self.all_exponents,
+                    exponents,
+                    self.rigid_monomers,
+                    self.thole_param, 
+                    self.thole_param, 
+                    self.slater_correction,
+                    #self.electrostatic_damping_type,
+                    self.thole_damping_type,
+                    self.induction_damping_type,
+                    self.damp_charges_only)
+        self.edrude_ind, self.edrude_dhf = d.get_induction_and_dhf_drude_energy()
+
         #return
-        self.mon1 = self.multipole_file1.split('_')[0]
-        self.mon2 = self.multipole_file2.split('_')[0]
         m = Multipoles(self.mon1,self.mon2,
                        self.xyz1,self.xyz2,
                        self.multipole_file1,self.multipole_file2,
@@ -3508,7 +3761,7 @@ class FitFFParameters:
         # be fit here
         self.component = 4
         ff_energy = 0.0
-        if self.fit_isotropic_dispersion:
+        if self.scale_isotropic_dispersion:
             ff_energy += self.fit_component_parameters()
         elif self.fit_dispersion and self.anisotropic_atomtypes:
             # Subtract one free parameter per atomtype; a0 is constrained to
