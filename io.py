@@ -11,7 +11,7 @@ import numpy as np
 import sys
 import json
 ## import sympy as sp
-## import os
+import os
 ## from sympy.utilities import lambdify
 ## from warnings import warn
 
@@ -26,6 +26,9 @@ from methods import default, mastiff
 ############################## Global Variables and Constants ######################################
 # Born-Mayer-sISA scaling exponent, as defined in Van Vleet et al. JCTC 2016
 _bmsisa_exp_scale = 0.84
+
+# Constraints suffix
+_constraints_suffix = '.constraints'
 
 ####################################################################################################    
 ####################################################################################################    
@@ -75,7 +78,7 @@ class Parameters():
         self.disp_suffix = '.disp'
         self.axes_suffix = '.axes'
         self.atomtypes_suffix = '.atomtypes'
-        self.constraints_suffix = '.constraints'
+        self.constraints_suffix = _constraints_suffix
 
         self.ignorecase = False
 
@@ -109,13 +112,13 @@ class Parameters():
         '''
 
         self.readAtomtypes()
-        constraints_files = [self.inputdir + mon + self.constraints_suffix for mon
-                            in (self.mon1, self.mon2)]
-        self.readConstraints(constraints_files)
+        self.readConstraints(self.constraint_files)
 
+        # Exponents: Read from input, scale depending on functional form
         exponent_files = [self.inputdir + mon + self.exp_suffix for mon
                             in (self.mon1, self.mon2)]
-        self.exponents = {}
+        self.exponents = { atom:[params[i]['B'] for i in range(len(params))] for atom,params in
+                self.params.items()}
         self.readExponents(exponent_files,self.exponents)
 
         if self.separate_induction_exponents:
@@ -211,8 +214,16 @@ class Parameters():
         POInter.
         '''
         overide_error = '''{0} attempts to set atomtype {1}'s exponent to
-        {2}, however elsewhere you have set this exponent to {3}. Please fix
-        the conflicting exponent definition and re-run POInter.
+        {2}, however elsewhere you have set this exponent to {3}. 
+        Please fix the conflicting exponent definition and re-run POInter.
+        Some suggestions:
+
+        1. Did you set different exponent values between your .exp and
+        .constraints files?
+        2. Did you use the Born-Mayer-sISA functional form? If so, values from
+        the .exp file have been scaled before being read into POInter, and may
+        differ from the input .exp values.
+        
         '''
         missing_error = '''You have not defined an exponent parameter for atomtype "{0}". 
         Please define this parameter in one of your .exp files -- {1}
@@ -230,7 +241,7 @@ class Parameters():
                     # Read in new atomtype exponent, check for conflicting
                     # values
                     atom, exponent = line
-                    exponent = [float(exponent)]
+                    exponent = [float(exponent)*self.exp_scale]
                     if self.ignorecase:
                         atom = atom.upper()
                     assert not (exponents.has_key(atom) and
@@ -289,12 +300,10 @@ class Parameters():
         above, and re-run POInter.
         '''
         
-        # TODO Add this functionality soon
         constraints = {}
         for ifile in constraints_files:
             with open(ifile,'r') as f:
                 constraints.update(json.load(f))
-
 
         for atom,c in constraints.items():
             print atom, c['A']
@@ -312,17 +321,6 @@ class Parameters():
             constraints[atom]['C'] = np.array(constraints[atom]['C'])
             self.params[atom] = []
             self.params[atom].append(constraints[atom])
-            ## i = self.constrained_atomtypes[atom]
-            ## self.params[atom] = []
-            ## for ib, b in enumerate(self.exponents[atom]):
-            ##     atom_dic = {}
-            ##     atom_dic['A'] = [ j[ib][0] if j else None for j in self.Aparams[i] ]
-            ##     atom_dic['aniso'] = [ j[ib][1:] if j else [] for j in self.Aparams[i] ]
-            ##     atom_dic['B'] = b
-            ##     atom_dic['C'] = self.Cparams[atom]
-            ##     if self.separate_induction_exponents:
-            ##         atom_dic['Bind'] = self.induction_exponents[atom][ib]
-            ##     self.params[atom].append(atom_dic)
 
         return
 ####################################################################################################    
@@ -844,7 +842,8 @@ class Settings(object):
         self.required_user_settings = ['mon1','mon2']
         self.optional_user_settings = ['energy_file',
                                        'multipole_file1','multipole_file2',
-                                       'ofile_prefix', 'ofile_suffix', 'output_file']
+                                       'ofile_prefix', 'ofile_suffix', 'output_file',
+                                       'constraint_files']
         self.recognized_settings += self.required_user_settings
         self.recognized_settings += self.optional_user_settings
 
@@ -935,6 +934,16 @@ class Settings(object):
                 elif key == 'output_file':
                     print self.settings
                     self.settings[key] = self.settings['ofile_prefix'] + 'coeffs' + self.settings['ofile_suffix'] + '.out'
+                elif key == 'constraint_files':
+                    self.settings[key] = []
+                    for mon in [mon1,mon2]:
+                        try:
+                            monfile = inputdir + mon + _constraints_suffix
+                            assert os.path.isfile(monfile)
+                        except AssertionError:
+                            continue
+                        else:
+                            self.settings[key].append(monfile) 
                 else:
                     self.settings[key] = None
 
@@ -988,6 +997,7 @@ class Settings(object):
                     self.pointer_settings['slater_correction'] = True
                 elif v.lower() == 'born-mayer-sisa':
                     self.pointer_settings['exp_scale'] = _bmsisa_exp_scale
+                    print 'Exponents are being scaled from input values by a scale factor of', _bmsisa_exp_scale
                 elif v.lower() == 'born-mayer-ip':
                     self.pointer_settings['exp_source'] = 'ip'
                 else:
