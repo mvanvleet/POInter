@@ -118,39 +118,6 @@ class FitFFParameters:
         '''
 
         ###########################################################################
-        ################ User-Defined Class Variables #############################
-        ## # User-Defined Class Variables, below, change frequently enough that
-        ## # they are read in each time this class is instantiated. Defaults are
-        ## # given for some of the variables.
-        ## self.energy_file=energy_file
-        ## self.param_file=param_file
-        ## self.output_file=output_file
-
-        ## # If set to true, computes the density overlap as the overlap of
-        ## # Slaters rather than as a simple Born-Mayer potential
-        ## self.slater_correction = slater_correction
-        ## # If set to true, fits scale factors to each exponent (i.e., optimizes
-        ## # exponents)
-        ## self.fit_bii = fit_bii
-
-        ## # Set combination rules for pre-factors and exponents. Options for
-        ## # each are as follows:
-        ## #   aij: 'saptff', 'waldman-hagler5', 'geometric', 'geometric_mean' (same as saptff)
-        ## #   bij: 'saptff', 'waldman-hagler5', 'geometric_mean', 'arithmetic_mean'
-        ## #   cij: 'geometric'
-        ## self.aij_combination_rule = aij_combination_rule
-        ## self.bij_combination_rule = bij_combination_rule
-        ## self.cij_combination_rule = cij_combination_rule
-
-        ## # Functional form can be chosen to either be the Born-Mayer or Stone
-        ## # potentials; see Stone's book for more details.
-        ## # Options are 'stone', 'born-mayer', or 'lennard-jones'
-        ## self.functional_form = functional_form
-        ###########################################################################
-        ###########################################################################
-
-
-        ###########################################################################
         ################## Program-Defined Class Variables ########################
         # Program-Defined Class Variable defaults, below, can be redefined in
         # the .param file as necessary, but can be left unchanged in most
@@ -183,15 +150,6 @@ class FitFFParameters:
                                       'Dispersion', 
                                       'Residual Energy',
                                       'Total Energy']
-
-        # Names of Output Files (ordering same as self.ncomponents)
-        ## self.energy_componen_suffix = ['exchange.dat',
-        ##                               'electrostatics.dat',
-        ##                               'induction.dat',
-        ##                               'dhf.dat',
-        ##                               'dispersion.dat',
-        ##                               'residual_energy.dat',
-        ##                               'total_energy.dat']
 
         # ----------------------------------------------------------------------
         # ATOMTYPE Variables; options for how to read in and recognize
@@ -409,7 +367,6 @@ class FitFFParameters:
         # be fit here
         self.component = 4
         self.components_to_fit.append(self.component)
-        #if self.fit_dispersion and self.anisotropic_atomtypes:
         if not self.scale_isotropic_dispersion:
             # Subtract one free parameter per atomtype; a0 is constrained to
             # be the input (isotropic) cn coefficient
@@ -473,6 +430,8 @@ class FitFFParameters:
             setattr(self,k,v)
 
         print config
+        with open(self.output_settings_file,'w') as f:
+            f.write(str(config))
 
         return
 ####################################################################################################    
@@ -2733,7 +2692,9 @@ class FitFFParameters:
                 f.write('Short-range Functional Form: '+str(self.settings['functional_form'])+'\n')
                 f.write('Combination Rules: aij = '+str(self.aij_combination_rule)+'\n')
                 f.write('                   bij = '+str(self.bij_combination_rule)+'\n')
+                f.write('                   cij = '+str(self.cij_combination_rule)+'\n')
                 f.write('Electrostatic Damping Type: '+str(self.electrostatic_damping_type)+'\n')
+                f.write('Thole         Damping Type: '+str(self.thole_damping_type)+'\n')
                 f.write('Thole Param: '+str(self.thole_param)+'\n')
                 f.write('Fitting weight: eff_mu = '+str(self.eff_mu)+' Ha\n')
                 f.write('                eff_kt = '+str(self.eff_kt)+' Ha\n')
@@ -2745,12 +2706,6 @@ class FitFFParameters:
                 else:
                     f.write('Anisotropic Atomtypes: None\n')
 
-                if self.slater_correction:
-                    f.write('All parameters have been radially corrected to account for Slater overlap\n')
-                    if self.exact_radial_correction:
-                        f.write('This radial correction is the exact overlap as computed in Rosen et al.\n')
-                    else:
-                        f.write('This radial correction is approximate, and is only rigorous for the case where bi = bj.\n')
                 f.write(short_break)
                 if self.fit_bii:
                     f.write('Exponents (Optimized):\n')
@@ -2772,15 +2727,17 @@ class FitFFParameters:
                 # Exchange Parameters
                 f.write('Exchange Parameters:\n')
                 f.write('    Functional Form = \n')
-                if self.slater_correction:
+                if 'slater' in self.functional_form:
                     f.write('\tE(exch)_ij = A*K2(rij)*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
                     f.write('    where the a coefficient for each spherical harmonic term Y_ml\n')
                     f.write('    is listed in the parameters below and \n')
                     f.write('\tK2(rij) = 1/3*(bij*rij)**2 + bij*rij + 1 \n')
-                else:
+                elif 'born-mayer' in self.functional_form:
                     f.write('\tE(exch)_ij = A*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
                     f.write('    where the a coefficient for each spherical harmonic term Y_ml\n')
                     f.write('    is listed in the parameters below.\n')
+                else:
+                    f.write('\tN/A\n')
 
             # Electrostatic Parameters
             elif self.component == 1:
@@ -2788,10 +2745,12 @@ class FitFFParameters:
                     f.write('Note: Multipole moments have been read in from a previous ORIENT calculation.\n')
                 f.write('Electrostatic Parameters:\n')
                 f.write('    Functional Form = \n')
-                if self.slater_correction:
+                if 'slater' in self.functional_form:
                     f.write('\tE(elst)_ij = f_damp*qi*qj/rij - A*K2(rij)*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
-                else:
+                elif 'born-mayer' in self.functional_form:
                     f.write('\tE(elst)_ij = f_damp*qi*qj/rij - A*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
+                else:
+                    f.write('\tN/A\n')
 
             # Induction Parameters
             elif self.component == 2:
@@ -2811,19 +2770,23 @@ class FitFFParameters:
                             f.write(template.format(name,b))
                 f.write('Induction Parameters:\n')
                 f.write('    Functional Form = \n')
-                if self.slater_correction:
+                if 'slater' in self.functional_form:
                     f.write('\tE(ind)_ij = shell_charge - A*K2(rij)*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
-                else:
+                elif 'born-mayer' in self.functional_form:
                     f.write('\tE(ind)_ij = shell_charge - A*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
+                else:
+                    f.write('\tN/A\n')
 
             # DHF Parameters
             elif self.component == 3:
                 f.write('DHF Parameters:\n')
                 f.write('    Functional Form = \n')
-                if self.slater_correction:
+                if 'slater' in self.functional_form:
                     f.write('\tE(dhf)_ij = - A*K2(rij)*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
-                else:
+                elif 'born-mayer' in self.functional_form:
                     f.write('\tE(dhf)_ij = - A*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
+                else:
+                    f.write('\tN/A\n')
 
             # Dispersion Parameters
             elif self.component == 4:
@@ -2838,10 +2801,12 @@ class FitFFParameters:
                 if self.functional_form == 'lennard-jones':
                     f.write('\tA=sigma,B=epsilon\n')
                     f.write('\tE(LJ)_ij = 4*B*((A/r)^12 - (A/r)^6)\n')
-                elif self.slater_correction:
+                elif 'slater' in self.functional_form:
                     f.write('\tE(residual)_ij = - A*K2(rij)*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
-                else:
+                elif 'born-mayer' in self.functional_form:
                     f.write('\tE(residual)_ij = - A*(1 + a_yml*Y_ml)*exp(-bij*rij)\n')
+                else:
+                    f.write('\tN/A\n')
 
             elif self.component == 6:
                 f.write('Total Energy:\n')

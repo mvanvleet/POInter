@@ -10,18 +10,10 @@ import importlib
 import numpy as np
 import sys
 import json
-## import sympy as sp
 import os
-## from sympy.utilities import lambdify
-## from warnings import warn
 
 # Local Packages
 from methods import default, mastiff
-## from functional_forms import get_damping_factor
-## import rotations
-# Numpy error message settings
-#np.seterr(all='raise')
-
 
 ############################## Global Variables and Constants ######################################
 # Born-Mayer-sISA scaling exponent, as defined in Van Vleet et al. JCTC 2016
@@ -420,6 +412,8 @@ class Parameters():
                     line per axis per atom.
                     '''.format(iaxis,iatom,ifile)
                 axes[iatom][iaxis] = coords
+
+        self.anisotropic_atomtypes = list(set(self.anisotropic_atomtypes))
 
         return
 ####################################################################################################    
@@ -842,7 +836,8 @@ class Settings(object):
         self.required_user_settings = ['mon1','mon2']
         self.optional_user_settings = ['energy_file',
                                        'multipole_file1','multipole_file2',
-                                       'ofile_prefix', 'ofile_suffix', 'output_file',
+                                       'ofile_prefix', 'ofile_suffix',
+                                       'output_file','output_settings_file',
                                        'constraint_files']
         self.recognized_settings += self.required_user_settings
         self.recognized_settings += self.optional_user_settings
@@ -932,8 +927,9 @@ class Settings(object):
                 elif key == 'energy_file':
                     self.settings[key] = inputdir + mon1 + '_' + mon2 + '.sapt'
                 elif key == 'output_file':
-                    print self.settings
                     self.settings[key] = self.settings['ofile_prefix'] + 'coeffs' + self.settings['ofile_suffix'] + '.out'
+                elif key == 'output_settings_file':
+                    self.settings[key] = self.settings['ofile_prefix'] + 'settings' + self.settings['ofile_suffix'] + '.out'
                 elif key == 'constraint_files':
                     self.settings[key] = []
                     for mon in [mon1,mon2]:
