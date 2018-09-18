@@ -2978,7 +2978,10 @@ class FitFFParameters:
         for atom in self.atomtypes:
             for ib in xrange(len(self.exponents[atom])):
                 # Write all necessary params to file
-                name = atom + '(' + str(ib) + ')'
+                if ib != 0:
+                    name = atom + '(' + str(ib) + ')'
+                else:
+                    name = atom 
                 A = self.params[atom][ib]['A']
                 aniso = self.params[atom][ib]['aniso']
                 aniso = [ an.tolist() for an in aniso ]

@@ -1,0 +1,13 @@
+Anisotropic Atomtypes
+O   y10 y20 y22c y30    #c2v symmetry
+#H   y10 y22c            #c2v symmetry
+
+Axes
+ATOM#   AXIS (z or x)   Atomic Indices defining vector (2 or more integers)
+0 z 0 1 2
+0 x 0 1
+## 1 z 1 0
+## 1 x 1 2
+## 2 z 2 0
+## 2 x 2 1
+
