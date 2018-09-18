@@ -1,0 +1,106 @@
+{
+    "O(0)": {
+        "params_order": [
+            "Exchange", 
+            "Electrostatics", 
+            "Induction", 
+            "Dhf", 
+            "Dispersion"
+        ], 
+        "A": [
+            3.504166851452636, 
+            2.286814639523029, 
+            0.20975300784088646, 
+            0.8072100660613428, 
+            1.0
+        ], 
+        "aniso": [
+            [
+                0.24024514237589947, 
+                0.0665799236842853, 
+                -0.20092840602485118, 
+                -0.014765280869717453
+            ], 
+            [
+                0.30051965934144337, 
+                0.1048352961082035, 
+                -0.227686839968101, 
+                -0.026474070749615705
+            ], 
+            [
+                -1.0, 
+                -0.19784057015984818, 
+                -0.9756666211287665, 
+                -0.0008543146637497765
+            ], 
+            [
+                0.06910656883404574, 
+                0.11032464740794012, 
+                -0.41510755862390736, 
+                -0.0048503888116545706
+            ], 
+            [
+                -0.008193406825262732, 
+                0.0036072497796700576, 
+                -0.13964879473074274, 
+                -0.014066725970550592
+            ]
+        ], 
+        "B": 2.18, 
+        "C": [
+            4.938486002815033, 
+            21.787123490722678, 
+            105.1169348868202, 
+            442.48583028160346
+        ], 
+        "drude_charge": -0.81394103, 
+        "sph_harm": [
+            "y10", 
+            "y20", 
+            "y22c", 
+            "y30"
+        ], 
+        "comments": [
+            "Parameters for the O atom in the molecule h2o, obtained from fitting the h2o - h2o dimer.", 
+            "Z-axis defined as the vector from atom O to the midpoint of atoms H,H in molecule h2o", 
+            "X-axis defined as the vector from atom O to atom H in molecule h2o"
+        ]
+    }, 
+    "H(0)": {
+        "params_order": [
+            "Exchange", 
+            "Electrostatics", 
+            "Induction", 
+            "Dhf", 
+            "Dispersion"
+        ], 
+        "A": [
+            0.4608120546080052, 
+            0.08882455510957336, 
+            0.2596756874999013, 
+            0.15186023618442013, 
+            1.0
+        ], 
+        "aniso": [
+            [], 
+            [], 
+            [], 
+            [], 
+            []
+        ], 
+        "B": 2.7, 
+        "C": [
+            0.9131418290714757, 
+            2.149100276860063, 
+            13.561412537047902, 
+            39.03905352336299
+        ], 
+        "drude_charge": -0.452216762, 
+        "sph_harm": [], 
+        "comments": [
+            "Parameters for the H atom in the molecule h2o, obtained from fitting the h2o - h2o dimer.", 
+            "Z-axis not defined", 
+            "X-axis not defined"
+        ]
+    }
+}

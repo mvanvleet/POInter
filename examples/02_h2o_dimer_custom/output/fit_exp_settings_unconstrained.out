@@ -1,0 +1,42 @@
+Importing configuration settings from the following files:
+	/home/mvanvleet/scripts/pointer/methods/default.pyc
+	/home/mvanvleet/scripts/pointer/methods/mastiff.pyc
+	/home/mvanvleet/scripts/pointer/examples/02_h2o_dimer_custom/config.py
+
+Current Program Settings:
+aij_combination_rule                     geometric
+bij_combination_rule                     geometric_mean
+cij_combination_rule                     geometric
+constrained_atomtypes                    []
+constraint_files                         []
+drude_method                             read
+drude_read_file                          input/edrudes.dat
+electrostatic_damping_type               None
+energy_file                              input/h2o_h2o.sapt
+exact_radial_correction                  False
+exponent_source                          ISA
+fit_bii                                  True
+fit_dispersion                           anisotropic
+fit_residuals                            False
+functional_form                          born-mayer-sisa
+ignorecase                               True
+include_slater_charge_penetration        False
+induction_damping_type                   Thole
+inputdir                                 input/
+lone_pair_flags                          ['Du', 'lp']
+mon1                                     h2o
+mon2                                     h2o
+multipole_file1                          input/h2o_ISA_L0.mom
+multipole_file2                          input/h2o_ISA_L0.mom
+multipoles_suffix                        _ISA_L0.mom
+ofile_prefix                             output/fit_exp_
+ofile_suffix                             _unconstrained
+output_file                              output/fit_exp_coeffs_unconstrained.out
+output_settings_file                     output/fit_exp_settings_unconstrained.out
+rigid_monomers                           False
+scale_weighting_temperature              0.5
+separate_induction_exponents             False
+springcon                                0.1
+thole_damping_type                       thole_tinker
+thole_param                              0.36
+weighted_rmse_cutoff                     0.0

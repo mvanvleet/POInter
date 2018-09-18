@@ -305,7 +305,7 @@ def read_local_axes(atoms,xyz,ifile):
     for line in axes_lines[start:]:
         try:
             iatom = int(line[0])
-        except (IndexError,TypeError):
+        except (ValueError,IndexError,TypeError):
             continue
         iaxis = 0 if line[1] == 'z' else 1 # list x and z axes seperately
         if axes[iatom][iaxis] != []:

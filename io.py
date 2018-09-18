@@ -836,6 +836,7 @@ class Settings(object):
         self.required_user_settings = ['mon1','mon2']
         self.optional_user_settings = ['energy_file',
                                        'multipole_file1','multipole_file2',
+                                       'drude_read_file',
                                        'ofile_prefix', 'ofile_suffix',
                                        'output_file','output_settings_file',
                                        'constraint_files']
@@ -920,6 +921,8 @@ class Settings(object):
                     self.settings['ofile_prefix'] = ''
                 elif key in ['ofile_suffix','file_suffix']:
                     self.settings['ofile_suffix'] = ''
+                elif key == 'drude_read_file':
+                    self.settings[key] = 'edrudes.dat'
                 elif key == 'multipole_file1':
                     self.settings[key] = inputdir + mon1 + multipoles_suffix
                 elif key == 'multipole_file2':

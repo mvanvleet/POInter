@@ -282,7 +282,7 @@ class FitFFParameters:
         self.drude_method='multipole-gradient'
         # If drude method is 'read', specify a filename containing the drude
         # energies:
-        self.drude_file = 'edrudes.dat'
+        self.drude_read_file = 'edrudes.dat'
 
         # The multipolar component of the interaction energy can be computed
         # using the Orient program. In this case, the location of the energy
@@ -1322,8 +1322,8 @@ class FitFFParameters:
                         self.electrostatic_damping_type)
             self.edrude_ind, self.edrude_dhf = d.get_induction_and_dhf_drude_energy()
         elif self.drude_method == 'read':
-            print 'Reading in drude oscillator energy from ',self.drude_file
-            with open(self.drude_file,'r') as f:
+            print 'Reading in drude oscillator energy from ',self.drude_read_file
+            with open(self.drude_read_file,'r') as f:
                 data = np.array([ [float(i) for i in line.split()] 
                                     for line in f.readlines()[1:] ])
                 self.edrude_ind = data[:,0]
@@ -1331,8 +1331,9 @@ class FitFFParameters:
         else:
             raise NotImplementedError
 
-        if self.drude_method != 'read' or self.drude_file != 'edrudes.dat':
-            with open('edrudes.dat','w') as f:
+        self.drude_file = self.ofile_prefix + 'edrudes' + self.ofile_suffix + '.dat'
+        if self.drude_method != 'read' or self.drude_file != self.drude_read_file:
+            with open(self.drude_file,'w') as f:
                 f.write('Edrude_ind \t\t Edrude_dhf\n')
                 for i in xrange(len(self.edrude_ind)):
                     f.write('{:16.8f} {:16.8f}\n'.format(self.edrude_ind[i],self.edrude_dhf[i]))
@@ -1652,6 +1653,7 @@ class FitFFParameters:
                 error = 'Damping type needs to be None for consistency with the Orient program.'
                 assert self.electrostatic_damping_type == 'None', error
             else:
+                kwargs = { k:v for k,v in self.settings.items() if k in ['inputdir'] }
                 m = Multipoles(self.mon1,self.mon2,
                                self.xyz1,self.xyz2,
                                self.multipole_file1,self.multipole_file2,
@@ -1659,10 +1661,11 @@ class FitFFParameters:
                                self.rigid_monomers,
                                self.all_exponents,self.slater_correction,
                                self.electrostatic_damping_type,self.damp_charges_only,
+                               **kwargs
                                )
                 multipole_energy = m.get_multipole_electrostatic_energy()
                 qm_fit_energy -= multipole_energy
-                with open('multipoles.dat','w') as f:
+                with open(self.ofile_prefix + 'multipoles' + self.ofile_suffix + '.dat','w') as f:
                     f.write('# Eelst \t\t Emultipole \n')
                     for q, m in zip(self.qm_energy[self.component],multipole_energy):
                         f.write('{:16.8f} {:16.8f}\n'.format(q,m))
@@ -2756,7 +2759,7 @@ class FitFFParameters:
             elif self.component == 2:
                 f.write('Drude oscillator energy has been calculated using the following method: ' + self.drude_method + '\n')
                 if self.drude_method == 'read':
-                    f.write('Drude energy read from: ' + self.drude_file + '\n')
+                    f.write('Drude energy read from: ' + self.drude_read_file + '\n')
                 if self.separate_induction_exponents:
                     if self.fit_bii:
                         f.write('Induction Exponents (Optimized):\n')
@@ -3099,7 +3102,7 @@ class FitFFParameters:
                        )
         multipole_energy = m.get_multipole_electrostatic_energy()
         self.component = 1
-        with open('multipoles.dat','w') as f:
+        with open(self.ofile_prefix + 'multipoles' + self.ofile_suffix + '.dat','w') as f:
             f.write('# Eelst \t\t Emultipole \n')
             for q, m in zip(self.qm_energy[self.component],multipole_energy):
                 f.write('{:16.8f} {:16.8f}\n'.format(q,m))

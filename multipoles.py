@@ -81,6 +81,7 @@ class Multipoles:
                    slater_correction=True,
                    damping_type='None',
                    damp_charges_only=True,
+                   **kwargs
                    ):
 
         '''Initialize input variables and interaction function tensors.'''
@@ -143,6 +144,10 @@ class Multipoles:
         # in Stone's book.
         self.initialize_interaction_tensor()
         self.delT={}
+
+        # Read in dictionary settings
+        for k,v in kwargs.items():
+            setattr(self,k,v)
 
         ###########################################################################
         ###########################################################################
@@ -230,7 +235,7 @@ class Multipoles:
                 # Read in local axis definitions from relevant .axes file
                 # TODO: Read in axes file(s) explicitly; make these files
                 # independent of the monomer file names
-                self.axis_file1 = self.mon1 + '.axes'
+                self.axis_file1 = self.inputdir + self.mon1 + '.axes'
                 self.axis_definitions1, self.local_axes1 = rotations.read_local_axes(
                                                             self.atoms1,self.local_coords1,self.axis_file1)
                 # Rotate multipole moments into the local axis frame defined above
@@ -250,7 +255,7 @@ class Multipoles:
             elif mon == 2:
                 self.atoms2, self.multipoles2, self.local_coords2 = self.read_multipoles(self.multipole_file2)
 
-                self.axis_file2 = self.mon2 + '.axes'
+                self.axis_file2 = self.inputdir + self.mon2 + '.axes'
                 self.axis_definitions2, self.local_axes2 = rotations.read_local_axes(
                                                             self.atoms2,self.local_coords2,self.axis_file2)
                 global_xyz = np.eye(3)
