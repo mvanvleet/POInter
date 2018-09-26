@@ -44,7 +44,6 @@ include_slater_charge_penetration   =  False
 # (fit_bii=False)
 fit_bii                    =    False
 exact_radial_correction             =  False
-exponent_source                     =  'ISA'
 
 # Induction Settings: Choose the type and parameters for the polarization
 # damping functions. Options for thole_damping_type are 'thole_tinker' and

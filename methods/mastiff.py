@@ -4,7 +4,7 @@ __version__ = '1.1.0'
 ########################## MASTIFF Defaults ##############################
 ##########################################################################
 # Radial functional forms f(r); see Stone's book for more details.
-# Options are 'slater', 'stone', 'born-mayer', 'born-mayer-sisa', or 'lennard-jones'
+# Options are 'slater', 'stone', 'born-mayer-ip', 'born-mayer-sisa', or 'lennard-jones'
 functional_form           =    'slater'
 
 # Combination rule settings: Select combination rules for each A prefactors, B
@@ -44,7 +44,7 @@ include_slater_charge_penetration   =  False
 # (fit_bii=False)
 fit_bii                    =    False
 exact_radial_correction             =  False
-exponent_source                     =  'ISA'
+exponent_source                     =  'read'
 
 # Induction Settings: Choose the type and parameters for the polarization
 # damping functions. Options for thole_damping_type are 'thole_tinker' and

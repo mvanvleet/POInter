@@ -1,11 +1,11 @@
 __version__ = '1.1.0'
 
 ##########################################################################
-########################## POInter Defaults ##############################
+########################## Force Field Defaults ##############################
 ##########################################################################
 # Radial functional forms f(r); see Stone's book for more details.
 # Options are 'slater', 'stone', 'born-mayer-ip', 'born-mayer-sisa', or 'lennard-jones'
-functional_form           =    'slater'
+functional_form           =    'born-mayer-ip'
 
 # Combination rule settings: Select combination rules for each A prefactors, B
 # exponents, and C dispersion coefficients. Options are as follows:

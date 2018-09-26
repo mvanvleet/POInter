@@ -301,8 +301,8 @@ class FitFFParameters:
 
         # Read in input files:
         self.read_settings(settings,kwargs)
-        self.read_params()
         self.read_energies()
+        self.read_params()
         self.fit_ff_parameters()
 
         return
@@ -473,7 +473,9 @@ class FitFFParameters:
         # Prepare select POInter instance variables for use in io.Parameters
         kwargs = {}
         for kw in ['ignorecase','cij_combination_rule','constrained_atomtypes',
-                   'springcon','separate_induction_exponents','exp_scale','constraint_files']:
+                   'springcon','separate_induction_exponents',
+                   'atoms1','atoms2',
+                   'exp_scale','exp_source','constraint_files']:
             kwargs[kw] = self.__dict__[kw]
 
         params = io.Parameters(self.mon1,self.mon2,self.inputdir,**kwargs)

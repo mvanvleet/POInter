@@ -106,12 +106,18 @@ class Parameters():
         self.readAtomtypes()
         self.readConstraints(self.constraint_files)
 
-        # Exponents: Read from input, scale depending on functional form
+        # Exponents: Read in any constraints, from input, scale depending on functional form
         exponent_files = [self.inputdir + mon + self.exp_suffix for mon
                             in (self.mon1, self.mon2)]
         self.exponents = { atom:[params[i]['B'] for i in range(len(params))] for atom,params in
                 self.params.items()}
-        self.readExponents(exponent_files,self.exponents)
+
+        if self.exp_source.lower() == 'read':
+            self.readExponents(exponent_files,self.exponents)
+        elif self.exp_source.lower() == 'ip':
+            print 'exponents from IP!'
+            self.calculateIPExponents()
+
 
         if self.separate_induction_exponents:
             indexponent_files = [self.inputdir + mon + self.indexp_suffix for mon
@@ -153,7 +159,10 @@ class Parameters():
         -------
 
         '''
+        error_message = '''The number of atomtypes given in your .atomtypes file
+        doesn\'t match that of the .sapt file!'''
 
+        # Read in atomtypes from the .atomtypes file(s)
         atomtype_files = [self.inputdir + mon + self.atomtypes_suffix for mon
                             in (self.mon1, self.mon2)]
         natoms = []
@@ -169,9 +178,19 @@ class Parameters():
             atoms = [ [a.upper() for a in atom] for atom in atoms ]
 
         self.natoms1, self.natoms2 = natoms
-        self.atoms1, self.atoms2 = atoms
+        self.atomtypes1, self.atomtypes2 = atoms
 
-        self.atomtypes = list(set(self.atoms1 + self.atoms2))
+        # Ensure that the number of atoms matches that from the .sapt file
+        assert len(self.atoms1) == len(self.atomtypes1), error_message
+        assert len(self.atoms2) == len(self.atomtypes2), error_message
+
+        # Construct list of atomtypes
+        self.atomtypes = list(set(self.atomtypes1 + self.atomtypes2))
+
+        # Construct atomtypes -> atoms hash; this is only needed if we later
+        # calculate exponents based on IP values
+        self.atomtypes_to_atoms = { k:v for k,v in zip(self.atomtypes1,self.atoms1) }
+        self.atomtypes_to_atoms.update({ k:v for k,v in zip(self.atomtypes2,self.atoms2) })
 
         return 
 ####################################################################################################    
@@ -245,6 +264,51 @@ class Parameters():
         for atom in self.atomtypes:
             assert exponents.has_key(atom),\
                 missing_error.format(atom,'\n\t\t\t'.join([''] + list(set(exponent_files))))
+
+        return
+####################################################################################################    
+
+
+####################################################################################################    
+    def calculateIPExponents(self,checkOveride=False):
+        '''
+
+        Parameters
+        ----------
+        checkOveride : boolean, default False
+            Ensures that any exponents in the constraints files match
+            exponents calculated from ionization potential (IP)-based
+            exponents. False by default.
+
+
+        Returns
+        -------
+        None explicitly, though self.exponents is updated
+
+        '''
+        overide_error = '''{0} attempts to set atomtype {1}'s exponent to
+        {2}, however elsewhere you have set this exponent to {3}. 
+        Please fix the conflicting exponent definition and re-run POInter.
+        Some suggestions:
+
+        1. Did you use the Born-Mayer-IP functional form? If so, values from
+        the .exp file have been scaled before being read into POInter, and may
+        differ from the input .exp values.
+        
+        '''
+
+        from elementdata import Exponent
+
+        for atom in self.atomtypes:
+            element = self.atomtypes_to_atoms[atom]
+            exponent = Exponent(element)
+            if not self.exponents.has_key(atom):
+                self.exponents[atom] = [exponent]
+            elif checkOveride:
+                # Make sure exponents given in constraints match IP values
+                assert not self.exponents[atom] != exponent,\
+                        overide_error.format(ifile,atom,exponent,self.exponents[atom])
+                self.exponents[atom] = exponent
 
         return
 ####################################################################################################    
@@ -786,6 +850,7 @@ class Energies():
             ## self.atomtypes = list(self.atomtypes)
 
             # Use .sapt file to get eff_mu and eff_kt
+            # TODO: Allow user to specify eff_kt and eff_mu directly
             etot_min = np.amin(self.qm_energy[6])
             self.eff_kt = -etot_min*self.scale_weighting_temperature
             self.eff_mu = 0.0
@@ -866,7 +931,7 @@ class Settings(object):
         sys.dont_write_bytecode = True
         
         for ifile in ifiles:
-            ifile = ifile.rstrip('.py')
+            ifile = ifile.replace('.py','')
             config_file = ifile.replace('/','.')
 
             try:
@@ -1001,7 +1066,7 @@ class Settings(object):
                     self.pointer_settings['exp_source'] = 'ip'
                 else:
                     assert False,\
-                        '"{}" is not a valid option for {}. '.format(k,v) +\
+                        '"{}" is not a valid option for {}. '.format(v,k) +\
                         'Valid options are "slater-isa", "born-mayer-sisa", and "born-mayer-ip".'
             else:
                 self.pointer_settings[k] = v
