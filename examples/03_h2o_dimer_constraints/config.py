@@ -52,8 +52,8 @@ rigid_monomers             =   False
 # Exchange Settings: fit_bii selects whether or not to treat the ISA
 # short-range exponents are soft- (fit_bii=True) or hard-constraints
 # (fit_bii=False)
-fit_bii                    =    True
-scale_weighting_temperature = 0.5
+fit_bii                    =    False
+scale_weighting_temperature = 5.0
 drude_method = 'read'
 drude_read_file = 'input/edrudes.dat'
 
