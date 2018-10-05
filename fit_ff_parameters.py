@@ -102,6 +102,7 @@ class FitFFParameters:
     '''
     def __init__(self,
                 settings=['default'],
+                fit=True,
                 **kwargs
                 ## energy_file,
                 ## param_file,
@@ -300,10 +301,11 @@ class FitFFParameters:
 
 
         # Read in input files:
-        self.read_settings(settings,kwargs)
-        self.read_energies()
-        self.read_params()
-        self.fit_ff_parameters()
+        if fit:
+            self.read_settings(settings,kwargs)
+            self.read_energies()
+            self.read_params()
+            self.fit_ff_parameters()
 
         return
 ####################################################################################################    
