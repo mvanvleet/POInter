@@ -1,0 +1,84 @@
+Atomtype: C0
+Fitting tail-corrected region using points over the range       3.84000000 to       8.54000000
+B (two-point fit):       1.94371730
+B (average over range):       1.94369121
+Fitting effective exponents using points over the range       1.28000000 to      10.00000000
+B (density_abs_cutoff minimize RMSE):       2.00296829
+Atomtype: H1
+Fitting tail-corrected region using points over the range       4.52000000 to       8.72000000
+B (two-point fit):       2.00397052
+B (average over range):       2.00398397
+Fitting effective exponents using points over the range       0.56000000 to       8.64000000
+B (density_abs_cutoff minimize RMSE):       2.22124530
+Atomtype: H2
+Fitting tail-corrected region using points over the range       4.44000000 to       8.74000000
+B (two-point fit):       2.01357934
+B (average over range):       2.01361489
+Fitting effective exponents using points over the range       0.56000000 to       8.66000000
+B (density_abs_cutoff minimize RMSE):       2.21519370
+Atomtype: H3
+Fitting tail-corrected region using points over the range       4.44000000 to       8.74000000
+B (two-point fit):       2.01347965
+B (average over range):       2.01351499
+Fitting effective exponents using points over the range       0.56000000 to       8.66000000
+B (density_abs_cutoff minimize RMSE):       2.21512319
+Atomtype: C4
+Fitting tail-corrected region using points over the range       4.52000000 to       8.66000000
+B (two-point fit):       1.97669116
+B (average over range):       1.97663624
+Fitting effective exponents using points over the range       1.26000000 to       9.70000000
+B (density_abs_cutoff minimize RMSE):       2.11663768
+Atomtype: H5
+Fitting tail-corrected region using points over the range       4.46000000 to       8.60000000
+B (two-point fit):       1.95821016
+B (average over range):       1.95812908
+Fitting effective exponents using points over the range       0.58000000 to       8.90000000
+B (density_abs_cutoff minimize RMSE):       2.14587483
+Atomtype: H6
+Fitting tail-corrected region using points over the range       4.46000000 to       8.60000000
+B (two-point fit):       1.95816141
+B (average over range):       1.95808018
+Fitting effective exponents using points over the range       0.58000000 to       8.90000000
+B (density_abs_cutoff minimize RMSE):       2.14583597
+Atomtype: C7
+Fitting tail-corrected region using points over the range       4.52000000 to       8.66000000
+B (two-point fit):       1.97670460
+B (average over range):       1.97664971
+Fitting effective exponents using points over the range       1.26000000 to       9.70000000
+B (density_abs_cutoff minimize RMSE):       2.11664659
+Atomtype: H8
+Fitting tail-corrected region using points over the range       4.46000000 to       8.60000000
+B (two-point fit):       1.95822244
+B (average over range):       1.95814141
+Fitting effective exponents using points over the range       0.58000000 to       8.90000000
+B (density_abs_cutoff minimize RMSE):       2.14588795
+Atomtype: H9
+Fitting tail-corrected region using points over the range       4.46000000 to       8.60000000
+B (two-point fit):       1.95819189
+B (average over range):       1.95811076
+Fitting effective exponents using points over the range       0.58000000 to       8.90000000
+B (density_abs_cutoff minimize RMSE):       2.14586136
+Atomtype: C10
+Fitting tail-corrected region using points over the range       3.84000000 to       8.54000000
+B (two-point fit):       1.94374748
+B (average over range):       1.94372144
+Fitting effective exponents using points over the range       1.28000000 to      10.00000000
+B (density_abs_cutoff minimize RMSE):       2.00299686
+Atomtype: H11
+Fitting tail-corrected region using points over the range       4.44000000 to       8.74000000
+B (two-point fit):       2.01356486
+B (average over range):       2.01360035
+Fitting effective exponents using points over the range       0.56000000 to       8.66000000
+B (density_abs_cutoff minimize RMSE):       2.21517507
+Atomtype: H12
+Fitting tail-corrected region using points over the range       4.52000000 to       8.72000000
+B (two-point fit):       2.00402991
+B (average over range):       2.00404352
+Fitting effective exponents using points over the range       0.56000000 to       8.64000000
+B (density_abs_cutoff minimize RMSE):       2.22128876
+Atomtype: H13
+Fitting tail-corrected region using points over the range       4.44000000 to       8.74000000
+B (two-point fit):       2.01352324
+B (average over range):       2.01355864
+Fitting effective exponents using points over the range       0.56000000 to       8.66000000
+B (density_abs_cutoff minimize RMSE):       2.21514508

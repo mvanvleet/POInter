@@ -1,0 +1,17 @@
+Ethane
+C  c3v y10 y20
+H  cinfv y10 y20
+
+Axes
+ATOM#   AXIS (z or x)   Atomic Indices defining vector (either 2 or more integers)
+0 z 0 1
+0 x 0 2
+1 z 1 0
+1 x 1 5
+2 z 2 0
+3 z 3 0
+4 z 4 0
+5 z 5 1
+6 z 6 1
+7 z 7 1
+
