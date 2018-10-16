@@ -159,8 +159,12 @@ class Parameters():
         -------
 
         '''
-        error_message = '''The number of atomtypes given in your .atomtypes file
-        doesn\'t match that of the .sapt file!'''
+        error_message = '''The atomtypes given in your .atomtypes file
+        doesn\'t match that of the .sapt file!
+        
+        Atomtypes (from .sapt file): {}
+        Atomtypes (from .atomtypes file): {}
+        '''
 
         # Read in atomtypes from the .atomtypes file(s)
         atomtype_files = [self.inputdir + mon + self.atomtypes_suffix for mon
@@ -177,12 +181,15 @@ class Parameters():
         if self.ignorecase:
             atoms = [ [a.upper() for a in atom] for atom in atoms ]
 
-        self.natoms1, self.natoms2 = natoms
+        self.natomtypes1, self.natomtypes2 = natoms
         self.atomtypes1, self.atomtypes2 = atoms
+        self.natoms1, self.natoms2 = len(self.atoms1), len(self.atoms2)
 
         # Ensure that the number of atoms matches that from the .sapt file
-        assert len(self.atoms1) == len(self.atomtypes1), error_message
-        assert len(self.atoms2) == len(self.atomtypes2), error_message
+        assert len(set(self.atoms1)) == len(self.atomtypes1),\
+                    error_message.format(self.atoms1,self.atomtypes1)
+        assert len(set(self.atoms2)) == len(self.atomtypes2),\
+                    error_message.format(self.atoms2,self.atomtypes2)
 
         # Construct list of atomtypes
         self.atomtypes = list(set(self.atomtypes1 + self.atomtypes2))
