@@ -3001,6 +3001,7 @@ class FitFFParameters:
                 else:
                     sph_harm = []
                 drude_charge = drude_charges[atom]
+                springcon = self.springcon
 
                 thole = self.thole_param
                 thole_type = self.thole_damping_type
@@ -3053,6 +3054,7 @@ class FitFFParameters:
                             ('A', A), ('aniso', aniso), 
                             ('B', B), ('C', C), 
                             ('drude_charge' , drude_charge),
+                            ('springcon' , springcon),
                             ('thole' , thole),
                             ('thole_type' , thole_type),
                             ('sph_harm' , sph_harm),
