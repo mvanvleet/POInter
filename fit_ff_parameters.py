@@ -3002,6 +3002,9 @@ class FitFFParameters:
                     sph_harm = []
                 drude_charge = drude_charges[atom]
 
+                thole = self.thole_param
+                thole_type = self.thole_damping_type
+
                 # Write axes shorthand notation as a user FYI
                 comments = []
                 mon = self.mon1 if atom in self.atoms1 else self.mon2
@@ -3050,6 +3053,8 @@ class FitFFParameters:
                             ('A', A), ('aniso', aniso), 
                             ('B', B), ('C', C), 
                             ('drude_charge' , drude_charge),
+                            ('thole' , thole),
+                            ('thole_type' , thole_type),
                             ('sph_harm' , sph_harm),
                             ('comments' , comments),
                             ])
