@@ -186,9 +186,9 @@ class Parameters():
         self.natoms1, self.natoms2 = len(self.atoms1), len(self.atoms2)
 
         # Ensure that the number of atoms matches that from the .sapt file
-        assert len(set(self.atoms1)) == len(self.atomtypes1),\
+        assert len((self.atoms1)) == len(self.atomtypes1),\
                     error_message.format(self.atoms1,self.atomtypes1)
-        assert len(set(self.atoms2)) == len(self.atomtypes2),\
+        assert len((self.atoms2)) == len(self.atomtypes2),\
                     error_message.format(self.atoms2,self.atomtypes2)
 
         # Construct list of atomtypes
@@ -367,10 +367,6 @@ class Parameters():
         for ifile in constraints_files:
             with open(ifile,'r') as f:
                 constraints.update(json.load(f))
-
-        for atom,c in constraints.items():
-            print atom, c['A']
-            print atom, c['comments']
 
         self.Aparams = [ ] # 4 components; exch, elst, ind, dhf
 

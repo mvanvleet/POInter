@@ -432,6 +432,9 @@ class FitFFParameters:
             setattr(self,k,v)
 
         print config
+        directory = os.path.dirname(self.output_settings_file)
+        if not os.path.exists(directory):
+                os.makedirs(directory)
         with open(self.output_settings_file,'w') as f:
             f.write(str(config))
 
