@@ -9,5 +9,6 @@ __license__ = "MIT"
 __maintainer__ = "Mary Van Vleet"
 __email__ = "mvanvleet@hmc.edu"
 
-from .fit_ff_parameters import FitFFParameters
+from .fit_ff_parameters import FitFFParameters, __version__
 from .io import Parameters, Energies, Settings
+
