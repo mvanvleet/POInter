@@ -107,13 +107,14 @@ class Parameters():
         self.readConstraints(self.constraint_files)
 
         # Exponents: Read in any constraints, from input, scale depending on functional form
-        exponent_files = [self.inputdir + mon + self.exp_suffix for mon
-                            in (self.mon1, self.mon2)]
+        if not self.exponent_files: #assign default .exp files if necessary
+            self.exponent_files = [self.inputdir + mon + self.exp_suffix for mon
+                                in (self.mon1, self.mon2)]
         self.exponents = { atom:[params[i]['B'] for i in range(len(params))] for atom,params in
                 self.params.items()}
 
         if self.exp_source.lower() == 'read':
-            self.readExponents(exponent_files,self.exponents)
+            self.readExponents(self.exponent_files,self.exponents)
         elif self.exp_source.lower() == 'ip':
             print 'exponents from IP!'
             self.calculateIPExponents()
@@ -907,6 +908,7 @@ class Settings(object):
                                        'drude_read_file',
                                        'ofile_prefix', 'ofile_suffix',
                                        'output_file','output_settings_file',
+                                       'exponent_files',
                                        'constraint_files']
         self.recognized_settings += self.required_user_settings
         self.recognized_settings += self.optional_user_settings
@@ -1011,6 +1013,8 @@ class Settings(object):
                             continue
                         else:
                             self.settings[key].append(monfile) 
+                elif key == 'exponent_files':
+                    self.settings[key] = []
                 else:
                     self.settings[key] = None
 

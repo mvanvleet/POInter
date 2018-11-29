@@ -480,7 +480,8 @@ class FitFFParameters:
         for kw in ['ignorecase','cij_combination_rule','constrained_atomtypes',
                    'springcon','separate_induction_exponents',
                    'atoms1','atoms2',
-                   'exp_scale','exp_source','constraint_files']:
+                   'exp_scale','exp_source',
+                   'exponent_files','constraint_files']:
             kwargs[kw] = self.__dict__[kw]
 
         params = io.Parameters(self.mon1,self.mon2,self.inputdir,**kwargs)
@@ -552,7 +553,6 @@ class FitFFParameters:
         # exponents in this format for use in these modules
         self.all_exponents = [ [] for i in xrange(self.natoms1)]
         for i,atom1 in enumerate(self.atoms1):
-            print i, atom1, self.atoms1, self.natoms1
             for atom2 in self.atoms2:
                 bi = self.exponents[atom1]
                 bj = self.exponents[atom2]
