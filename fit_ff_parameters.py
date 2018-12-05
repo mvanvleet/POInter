@@ -433,8 +433,11 @@ class FitFFParameters:
 
         print config
         directory = os.path.dirname(self.output_settings_file)
-        if not os.path.exists(directory):
+        # Create any subdirectories implicitly specified by the user in
+        # self.output_settings_file
+        if directory and not os.path.exists(directory):
                 os.makedirs(directory)
+
         with open(self.output_settings_file,'w') as f:
             f.write(str(config))
 
