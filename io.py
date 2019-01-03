@@ -160,11 +160,32 @@ class Parameters():
         -------
 
         '''
-        error_message = '''The atomtypes given in your .atomtypes file
-        doesn\'t match that of the .sapt file!
+        atomtypes_error_message = '''
+        The number of atoms listed in {0} is not consistent
+        between line 1 and the rest of the file!
         
-        Atomtypes (from .sapt file): {}
-        Atomtypes (from .atomtypes file): {}
+        Number of atoms in {0}...
+            ...according to line 1:               {1}
+            ...according to the rest of the file: {2}
+                ({3})
+
+        Please fix this inconsistency in
+        {0} 
+        and re-run POInter.
+        '''
+
+        error_message = '''
+        The number of atoms listed in your .atomtypes file doesn\'t match that
+        of the .sapt file!
+        
+        Number of atoms in monomer {0}...
+            ...according to the .sapt file:      {1}
+            ...according to the .atomtypes file: {2}
+
+        Please fix 
+        {3} 
+        to list atomtypes for each of the {1} atoms in monomer {0}, and re-run
+        POInter.
         '''
 
         # Read in atomtypes from the .atomtypes file(s)
@@ -177,20 +198,28 @@ class Parameters():
                 data = [line.split() for line in f.readlines()]
                 natoms.append(int(data[0][0]))
                 for line in data[2:]:
-                    atoms[i].append(line[0])
+                    if line: #ignore blank lines
+                        atoms[i].append(line[0])
 
         if self.ignorecase:
             atoms = [ [a.upper() for a in atom] for atom in atoms ]
 
-        self.natomtypes1, self.natomtypes2 = natoms
+        self.natomtypes1, self.natomtypes2 = natoms #number of atoms according to the .atomtypes file
         self.atomtypes1, self.atomtypes2 = atoms
-        self.natoms1, self.natoms2 = len(self.atoms1), len(self.atoms2)
+        self.natoms1, self.natoms2 = len(self.atoms1), len(self.atoms2) # number of atoms according to the .sapt file:
 
-        # Ensure that the number of atoms matches that from the .sapt file
+        # Ensure self-consistency in each .atomtypes file
+        assert self.natomtypes1 == len(self.atomtypes1), atomtypes_error_message.format(
+                atomtype_files[0],self.natomtypes1,len(self.atomtypes1),self.atomtypes1)
+        assert self.natomtypes2 == len(self.atomtypes2), atomtypes_error_message.format(
+                atomtype_files[1],self.natomtypes2,len(self.atomtypes2),self.atomtypes2)
+
+        # Ensure number of atoms listed in each .atomtypes file equals the number
+        # of atoms in each molecule (from the .sapt file)
         assert len((self.atoms1)) == len(self.atomtypes1),\
-                    error_message.format(self.atoms1,self.atomtypes1)
+                    error_message.format(1,self.natoms1,self.natomtypes1,atomtype_files[0])
         assert len((self.atoms2)) == len(self.atomtypes2),\
-                    error_message.format(self.atoms2,self.atomtypes2)
+                    error_message.format(2,self.natoms2,self.natomtypes2,atomtype_files[1])
 
         # Construct list of atomtypes
         self.atomtypes = list(set(self.atomtypes1 + self.atomtypes2))
