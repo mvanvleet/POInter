@@ -1012,7 +1012,7 @@ class FitFFParameters:
                     print 'Please either list atom '+str(i)+\
                             ' in monomer 1 as anisotropic or remove the line' +\
                             ' specifying a coordinate axis for this atom.'
-                    sys.exit()
+                    #sys.exit()
 
         # Compute angular dependence table for atoms in monomer 2
         for i in xrange(self.natoms2):
@@ -1085,8 +1085,7 @@ class FitFFParameters:
                     print 'Please either list atom '+str(i)+\
                             ' in monomer 2 as anisotropic or remove the line' +\
                             ' specifying a coordinate axis for this atom.'
-                    sys.exit()
-
+                    #sys.exit()
 
         return self.angles1, self.angles2
 
@@ -1290,6 +1289,9 @@ class FitFFParameters:
         exponents = self.all_exponents
         if self.drude_method == 'multipole-gradient':
             print 'Calculating drude oscillator energy using a multipole-gradient method'
+            kwargs = {}
+            for kw in ['inputdir']:
+                kwargs[kw] = self.__dict__[kw]
             from drude_oscillators import Drudes
             d = Drudes( self.mon1, self.mon2,
                         self.xyz1, self.xyz2, 
@@ -1306,7 +1308,7 @@ class FitFFParameters:
                         #self.electrostatic_damping_type,
                         self.thole_damping_type,
                         self.induction_damping_type,
-                        self.damp_charges_only)
+                        self.damp_charges_only,**kwargs)
             self.edrude_ind, self.edrude_dhf = d.get_induction_and_dhf_drude_energy()
         elif self.drude_method == 'finite-differences':
             print 'Calculating drude oscillator energy using finite-differences'
@@ -2981,7 +2983,7 @@ class FitFFParameters:
         output_params = {}
 
         drude_charges = { k:v for k,v in 
-                            zip(self.atoms1 + self.atoms2,
+                            zip(self.atomtypes1 + self.atomtypes2,
                                 self.drude_charges1.tolist() +
                                 self.drude_charges2.tolist()) }
 
@@ -3011,8 +3013,8 @@ class FitFFParameters:
 
                 # Write axes shorthand notation as a user FYI
                 comments = []
-                mon = self.mon1 if atom in self.atoms1 else self.mon2
-                atoms = self.atoms1 if atom in self.atoms1 else self.atoms2
+                mon = self.mon1 if atom in self.atomtypes1 else self.mon2
+                atoms = self.atomtypes1 if atom in self.atomtypes1 else self.atomtypes2
                 iatom = atoms.index(atom)
                 comments.append( 'Parameters for the {} atom in the molecule {}, obtained from fitting the {} - {} dimer.'.format(
                             atom,mon,self.mon1,self.mon2))
