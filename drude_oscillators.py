@@ -96,7 +96,8 @@ class Drudes:
                    slater_correction=True,
                    intra_damping_type='thole_tinker',
                    inter_damping_type='None',
-                   damp_charges_only=True
+                   damp_charges_only=True,
+                   **kwargs
                    ):
 
         '''Initilialize input variables and drude positions.'''
@@ -199,6 +200,11 @@ class Drudes:
         # for each atomtype
         self.exponents = np.squeeze(self.exponents,axis=(-2,-1))
 
+        # Read in other kw settings
+        for k,v in kwargs.items():
+            setattr(self,k,v)
+
+
         ###########################################################################
         ###########################################################################
 
@@ -214,7 +220,6 @@ class Drudes:
         # Initialize damping functions, either by reading functions in from
         # file or generating them on the fly.
         self.get_damping_functions()
-
 
         ###########################################################################
         ###########################################################################
@@ -273,12 +278,15 @@ class Drudes:
         if init:
             # M1 class instance for the interaction of mon2 drudes with mon1
             # multipoles
+            kwargs = {}
+            for kw in ['inputdir']:
+                kwargs[kw] = self.__dict__[kw]
             m1 = Multipoles(self.mon1, self.mon2,
                             self.xyz1,self.shell_xyz2, 
                             self.multipole_file1, self.multipole_file2,
                             self.axes1, self.axes2,
                             self.rigid_monomers,
-                            self.exponents, self.slater_correction)
+                            self.exponents, self.slater_correction,**kwargs)
             ## m1.atoms1, m1.multipoles1, m1.local_coords1 = m1.read_multipoles(self.multipole_file1)
             ## m1.ea = m1.get_local_to_global_rotation_matrix(m1.xyz1,m1.local_coords1)
             # Get multipoles1 and ea
@@ -297,7 +305,7 @@ class Drudes:
                             self.multipole_file2, self.multipole_file1,
                             self.axes2, self.axes1,
                             self.rigid_monomers,
-                            self.exponents, self.slater_correction)
+                            self.exponents, self.slater_correction,**kwargs)
             # TODO: Should exponents be reversed?
             ## m2.atoms2, m2.multipoles1, m2.local_coords1 = m2.read_multipoles(self.multipole_file2)
             ## m2.ea = m2.get_local_to_global_rotation_matrix(m2.xyz1,m2.local_coords1)

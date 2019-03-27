@@ -137,111 +137,10 @@ def rotate_sph_harm(moments, r):
 
     return rotated_moments
 ####################################################################################################    
-
-
-####################################################################################################    
-def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
-    '''Compute the rotation matrix that transforms coordinates from the
-    local to global coordinate frame.
-
-    Parameters
-    ----------
-    global_xyz : 3darray
-        xyz coordinates of all atoms and all monomer configurations for which multipole
-        interactions will later be computed, of size (ndatpts,natoms,3).
-    local_xyz : 2darray
-        xyz coordinates of each atom in the multipolar coordinate frame,
-        of size (natoms,3).
-
-    Returns
-    -------
-    rotation_matrix : 3darray
-        Rotation matrix that transforms coordinates from the local (i.e.
-        monomer multipole) frame to the global (dimer) coordinate frame for
-        each dimer configuration. Size (ndatpts x 3 x 3).
-
-    '''
-
-
-    # Get rotation vector from the global axis to the local axis
-    # http://stackoverflow.com/questions/1171849/finding-quaternion-representing-the-rotation-from-one-vector-to-another
-    rotation_matrix = np.array([np.identity(3) for x in global_xyz])
-    trans_local_xyz = local_xyz[np.newaxis,:]
-    trans_global_xyz = global_xyz
-    # if xyz is an atom, don't need to rotate local axes
-    if len(global_xyz[0]) == 1:
-        assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
-        return rotation_matrix
-
-    # Otherwise, rotate coordinate frame in order to properly align x-axis
-    v1 = trans_local_xyz[:,0]
-    v2 = trans_global_xyz[:,0] 
-    q_w,q_vec = get_rotation_quaternion(v1,v2)
-
-    np.seterr(all="ignore")
-    trans_local_xyz = rotate_local_xyz(q_w, q_vec, trans_local_xyz)
-    rotation_matrix = rotate_local_xyz(q_w,q_vec, rotation_matrix)
-    np.seterr(all="warn")
-
-    # If xyz is diatomic, don't need to rotate second set of axes
-    if len(global_xyz[0]) == 2:
-        assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
-        return rotation_matrix
-
-    # Otherwise, rotate coordinate frame to properly align y- and z-axes
-    v1 = trans_local_xyz[:,0]
-    v2 = trans_global_xyz[:,0]
-    for i in range(2,len(global_xyz[0])):
-        # Search for vector in molecule that is not parallel to the first
-        v1b = trans_local_xyz[:,i] #- trans_local_xyz[:,0]
-        v2b = trans_global_xyz[:,i] #- trans_global_xyz[:,0]
-        v3 = np.cross(v1,v1b)
-        v4 = np.cross(v2,v2b)
-
-        if not np.array_equal(v3,np.zeros_like(v3)):
-            break
-    else:
-        # All vectors in molecule are parallel; hopefully molecules are
-        # now aligned
-        assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
-        return rotation_matrix
-
-
-    # Align an orthogonal vector to v1; once this vector is aligned, the
-    # molecules should be perfectly aligned
-    q_w,q_vec = get_rotation_quaternion(v3,v4,v_orth=v1)
-    np.seterr(all="ignore")
-    trans_local_xyz = rotate_local_xyz(q_w, q_vec, trans_local_xyz)
-    rotation_matrix = rotate_local_xyz(q_w,q_vec, rotation_matrix)
-    np.seterr(all="warn")
-
-    try:
-        assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
-    except AssertionError:
-        print 'bad rotation!!'
-        print np.max(trans_local_xyz-trans_global_xyz)
-
-        print trans_local_xyz[0]
-        print '---'
-        print trans_global_xyz[0]
-        sys.exit()
-
-    # Check that rotation matrix actually transforms local axis into global
-    # axis
-    if not np.allclose(np.dot(rotation_matrix,local_xyz)[0],global_xyz):
-        print rotation_matrix
-        print local_xyz
-        print np.dot(rotation_matrix,local_xyz)
-        print 
-        print 'Rotation matrix does not actually transform local axis into global reference frame!'
-        sys.exit()
-
-    return rotation_matrix
-####################################################################################################    
    
    
 ####################################################################################################    
-def get_rotation_quaternion(v1,v2,v_orth=np.array([1,0,0]),tol=1e-16):
+def get_rotation_quaternion(v1,v2,v_orth=None,tol=1e-10):
     '''Given two vectors v1 and v2, compute the rotation quaternion
     necessary to align vector v1 with v2.
 
@@ -271,19 +170,32 @@ def get_rotation_quaternion(v1,v2,v_orth=np.array([1,0,0]),tol=1e-16):
         Vector for each of the ndatpts about which v1 is to be rotated.
 
     '''
+    # Normalize v1 and v2
     v1 /= np.sqrt(np.sum(v1*v1,axis=-1))[...,np.newaxis]
     v2 /= np.sqrt(np.sum(v2*v2,axis=-1))[...,np.newaxis]
 
-    dot = np.sum(v1*v2,axis=-1)
+    # If v_orth was not given as a default, create a vector orthogonal to v1
+    # in case v1 and v2 are antiparallel
+    if type(v_orth) == 'NoneType':
+        v_orth = np.random.randn(*v1.shape)
+        v_orth -= v1*np.sum(v1*v_orth,axis=-1)
+        v_orth /= np.linalg.norm(v_orth)
 
+
+    # Determine quaternion vector, accounting for the edge case where v1 and
+    # v2 are antiparallel
+    dot = np.sum(v1*v2,axis=-1)
     q_vec = np.where(dot[...,np.newaxis] > -1.0 + tol,
             np.cross(v1,v2), v_orth)
+    q_vec = q_vec.astype(np.float)
 
     # For antiparallel vectors, rotate 180 degrees
     q_w = np.sqrt(np.sum(v1*v1,axis=-1)*np.sum(v2*v2,axis=-1)) + dot
 
+
     # Normalize quaternion
     q_norm = np.sqrt(q_w**2 + np.sum(q_vec**2,axis=-1))
+
     q_w /= q_norm
     q_vec /= q_norm[...,np.newaxis]
 
@@ -521,10 +433,12 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
     rotation_matrix = np.array([np.identity(3) for x in global_xyz])
     trans_local_xyz = local_xyz[np.newaxis,:] - local_xyz[0]
     trans_global_xyz = global_xyz - global_xyz[:,0,np.newaxis]
+
     if len(global_xyz[0]) == 1:
         #if xyz is an atom, don't need to rotate local axes
         transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
         return rotation_matrix, transformation_success
+
 
     v1 = trans_local_xyz[:,1] - trans_local_xyz[:,0]
     v2 = trans_global_xyz[:,1] - trans_global_xyz[:,0]
@@ -535,10 +449,12 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
     rotation_matrix = rotate_local_xyz(q_w,q_vec, rotation_matrix)
     np.seterr(all="warn")
 
+    assert np.allclose(trans_local_xyz[:,1],trans_global_xyz[:,1],atol=1e-5)
+
     if len(global_xyz[0]) == 2:
         #if xyz is diatomic, don't need to rotate second set of axes
         assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
-        return rotation_matrix
+        return rotation_matrix, transformation_success
 
     v1 = trans_local_xyz[:,1] - trans_local_xyz[:,0]
     v2 = trans_global_xyz[:,1] - trans_global_xyz[:,0]
@@ -554,7 +470,6 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
         # All vectors in molecule are parallel; hopefully molecules are
         # now aligned
         transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
-        #assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-1)
         return rotation_matrix, transformation_success
 
     # Align an orthogonal vector to v1; once this vector is aligned, the
@@ -565,6 +480,10 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
     rotation_matrix = rotate_local_xyz(q_w,q_vec, rotation_matrix)
     np.seterr(all="warn")
     transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
+
+    if not transformation_success:
+        for line in (trans_local_xyz - trans_global_xyz):
+            print line
 
     return rotation_matrix, transformation_success
 ####################################################################################################    

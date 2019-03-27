@@ -476,7 +476,8 @@ class Parameters():
         self.anisotropic_axes2 = [ [ [],[] ] for i in xrange(self.natoms2)]
         for imon,ifile in enumerate(axes_files):
             with open(ifile,'r') as f:
-                sections = f.read().split('\n\n')
+                #TODO: Check that using \r\n vs. \n\n is robust
+                sections = f.read().split('\r\n')
             anisotropic_lines = [line.split('#')[0] 
                                 for line in sections[0].split('\n') ]
             anisotropic_data = [line.split() for line in anisotropic_lines]
@@ -488,6 +489,7 @@ class Parameters():
                 self.anisotropic_atomtypes.append(line[0])
                 self.anisotropic_symmetries[line[0]] = line[1:]
             
+            print sections
             axes_lines = [line.split('#')[0] 
                                 for line in sections[1].split('\n') ]
             axes_data = [line.split() for line in axes_lines]
