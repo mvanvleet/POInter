@@ -1,4 +1,6 @@
 # Standard Packages
+from __future__ import absolute_import
+from __future__ import print_function
 import numpy as np
 import sys
 import os
@@ -10,6 +12,7 @@ from scipy.optimize import minimize
 #np.seterr(all='raise')
 from drude_oscillators import Drudes
 from multipoles import Multipoles
+from six.moves import zip
 
 ####################################################################################################    
 ####################################################################################################    
@@ -298,8 +301,8 @@ class FDDrudes(Drudes):
         m2.multipoles1 = [ {'Q00' : q } for q in self.qshell1 ]
         m2.ea = np.array([ np.identity(3) for xyz in m2.xyz1])
 
-        print m1.multipoles1
-        print m2.multipoles2
+        print(m1.multipoles1)
+        print(m2.multipoles2)
 
         # Re-save multipole class instances as Drude oscillator class
         # variables.
@@ -344,11 +347,11 @@ class FDDrudes(Drudes):
         shell_xyz = self.shell_xyz1.flatten()
         shell_xyz = np.append(shell_xyz,self.shell_xyz2.flatten())
         edrude_total = self.get_drude_energy(shell_xyz,return_total=False)
-        print 'DHF shell displacements'
-        print self.shell_xyz1[0] - self.xyz1[0]
-        print '---'
-        print self.shell_xyz2[0] - self.xyz2[0]
-        print '---'
+        print('DHF shell displacements')
+        print(self.shell_xyz1[0] - self.xyz1[0])
+        print('---')
+        print(self.shell_xyz2[0] - self.xyz2[0])
+        print('---')
 
         # Set each monomer's drude charges to zero and get drude energy in
         # order to get 2nd order induction energy
@@ -357,11 +360,11 @@ class FDDrudes(Drudes):
         shell_xyz = self.shell_xyz1.flatten()
         shell_xyz = np.append(shell_xyz,self.shell_xyz2.flatten())
         edrude_ind1 = self.get_drude_energy(shell_xyz,return_total=False)
-        print 'Ind qshell1 shell displacements'
-        print self.shell_xyz1[0] - self.xyz1[0]
-        print '---'
-        print self.shell_xyz2[0] - self.xyz2[0]
-        print '---'
+        print('Ind qshell1 shell displacements')
+        print(self.shell_xyz1[0] - self.xyz1[0])
+        print('---')
+        print(self.shell_xyz2[0] - self.xyz2[0])
+        print('---')
 
         self.qshell1 = np.zeros_like(self.qshell1)
         self.qshell2 = qshell2_save
@@ -369,11 +372,11 @@ class FDDrudes(Drudes):
         shell_xyz = self.shell_xyz1.flatten()
         shell_xyz = np.append(shell_xyz,self.shell_xyz2.flatten())
         edrude_ind2 = self.get_drude_energy(shell_xyz,return_total=False)
-        print 'Ind qshell2 shell displacements'
-        print self.shell_xyz1[0] - self.xyz1[0]
-        print '---'
-        print self.shell_xyz2[0] - self.xyz2[0]
-        print '---'
+        print('Ind qshell2 shell displacements')
+        print(self.shell_xyz1[0] - self.xyz1[0])
+        print('---')
+        print(self.shell_xyz2[0] - self.xyz2[0])
+        print('---')
 
         edrude_ind = edrude_ind1 + edrude_ind2
         edrude_high_order = edrude_total - edrude_ind
@@ -426,12 +429,12 @@ class FDDrudes(Drudes):
             shell_xyz1 = np.reshape(shell_xyz[:shift],self.xyz1.shape)
             shell_xyz2 = np.reshape(shell_xyz[shift:],self.xyz2.shape)
         except ValueError:
-            print 'ndatpts = ', ndatpts
-            print 'natoms1 = ', natoms1
-            print 'natoms2 = ', natoms2
-            print 'nxyz = ', nxyz
-            print 'shell_xyz ', shell_xyz.size
-            print 'xyz ', self.xyz1.size, self.xyz2.size, self.xyz1.size + self.xyz2.size
+            print('ndatpts = ', ndatpts)
+            print('natoms1 = ', natoms1)
+            print('natoms2 = ', natoms2)
+            print('nxyz = ', nxyz)
+            print('shell_xyz ', shell_xyz.size)
+            print('xyz ', self.xyz1.size, self.xyz2.size, self.xyz1.size + self.xyz2.size)
             raise
 
         # Intramolecular drude energy from monomer 1

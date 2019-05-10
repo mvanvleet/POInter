@@ -32,6 +32,10 @@ system.
 
 """
 
+from __future__ import absolute_import
+from __future__ import print_function
+from six.moves import range
+from six.moves import zip
 __author__ = "Mary Van Vleet"
 __version__ = "1.0"
 
@@ -140,7 +144,7 @@ def rotate_sph_harm(moments, r):
    
    
 ####################################################################################################    
-def get_rotation_quaternion(v1,v2,v_orth=None,tol=1e-10):
+def get_rotation_quaternion(v1,v2,v_orth=np.array([]),tol=1e-10):
     '''Given two vectors v1 and v2, compute the rotation quaternion
     necessary to align vector v1 with v2.
 
@@ -176,7 +180,7 @@ def get_rotation_quaternion(v1,v2,v_orth=None,tol=1e-10):
 
     # If v_orth was not given as a default, create a vector orthogonal to v1
     # in case v1 and v2 are antiparallel
-    if type(v_orth) == 'NoneType':
+    if v_orth.size == 0:
         v_orth = np.random.randn(*v1.shape)
         v_orth -= v1*np.sum(v1*v_orth,axis=-1)
         v_orth /= np.linalg.norm(v_orth)
@@ -221,9 +225,9 @@ def read_local_axes(atoms,xyz,ifile):
             continue
         iaxis = 0 if line[1] == 'z' else 1 # list x and z axes seperately
         if axes[iatom][iaxis] != []:
-            print 'The '+line[1]+' axis for atom '+line[0]+\
-                    ' in monomer 2 has already been specified.'
-            print 'Please only use one axis specification line per axis per atom.'
+            print('The '+line[1]+' axis for atom '+line[0]+\
+                    ' in monomer 2 has already been specified.')
+            print('Please only use one axis specification line per axis per atom.')
             sys.exit()
         else:
             axes[iatom][iaxis] = [ int(i) for i in line[2:] ]
@@ -270,8 +274,8 @@ def read_local_axes(atoms,xyz,ifile):
         x_axis = magnitude*direction 
         x_axis /= np.linalg.norm(x_axis)
         if np.dot(z_axis,x_axis) > 1e-7:
-            print 'not normalized!'
-            print np.dot(z_axis,x_axis)
+            print('not normalized!')
+            print(np.dot(z_axis,x_axis))
             sys.exit()
 
         y_axis = np.cross(z_axis,x_axis)
@@ -318,7 +322,7 @@ def rotate_multipole_moments(multipoles,local_axes,global_axis=np.eye(3)):
 
     '''
     rotated_moments = []
-    for iatom in xrange(len(multipoles)):
+    for iatom in range(len(multipoles)):
         # Compute quaternion to rotate global axis frame to local one
         R, transformation_success = get_local_to_global_rotation_matrix(global_axis[np.newaxis,...],local_axes[iatom])
         assert transformation_success
@@ -328,7 +332,7 @@ def rotate_multipole_moments(multipoles,local_axes,global_axis=np.eye(3)):
         labels = ['Q00', 'Q10', 'Q11c', 'Q11s', 'Q20', 'Q21c', 'Q21s', 'Q22c', 'Q22s']
         moments = [ 0 for q in labels ]
         for i,key in enumerate(labels):
-            if multipoles[iatom].has_key(key):
+            if key in multipoles[iatom]:
                 moments[i] = multipoles[iatom][key]
 
         # Rotate moments using Wigner transformations
@@ -337,7 +341,7 @@ def rotate_multipole_moments(multipoles,local_axes,global_axis=np.eye(3)):
     # Re-express multipole moments as list of dictionaries
     rotated_multipoles = []
     for moment in rotated_moments:
-        multipoles = dict(zip(labels,moment))
+        multipoles = dict(list(zip(labels,moment)))
         rotated_multipoles.append(multipoles)
 
     return rotated_multipoles
@@ -434,6 +438,10 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
     trans_local_xyz = local_xyz[np.newaxis,:] - local_xyz[0]
     trans_global_xyz = global_xyz - global_xyz[:,0,np.newaxis]
 
+    print(trans_local_xyz[0,:])
+    print(trans_global_xyz[0,:])
+    print() 
+
     if len(global_xyz[0]) == 1:
         #if xyz is an atom, don't need to rotate local axes
         transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
@@ -449,7 +457,14 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
     rotation_matrix = rotate_local_xyz(q_w,q_vec, rotation_matrix)
     np.seterr(all="warn")
 
-    assert np.allclose(trans_local_xyz[:,1],trans_global_xyz[:,1],atol=1e-5)
+    try:
+        assert np.allclose(trans_local_xyz[:,1],trans_global_xyz[:,1],atol=1e-5)
+    except AssertionError:
+        print(trans_local_xyz[0])
+        print(trans_global_xyz[0])
+        print()
+        print(np.isclose(trans_local_xyz[:,1],trans_global_xyz[:,1],atol=1e-5))
+        raise
 
     if len(global_xyz[0]) == 2:
         #if xyz is diatomic, don't need to rotate second set of axes
@@ -483,7 +498,7 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
 
     if not transformation_success:
         for line in (trans_local_xyz - trans_global_xyz):
-            print line
+            print(line)
 
     return rotation_matrix, transformation_success
 ####################################################################################################    

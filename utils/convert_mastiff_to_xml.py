@@ -139,8 +139,10 @@ def convert_sph(a_params,param_labels,ncomponents):
             print label, ' is not a valid spherical harmonic!'
             sys.exit()
         for k in xrange(ncomponents):
-            # Sort and convert from spherical harmonics to solid harmonics
+            # Sort and convert from normalized spherical harmonics to
+            # unormalized spherical harmonics
             sph_params[k][j] = a_params[k][i]*_sph_conv[j]
+            #sph_params[k][j] = a_params[k][i]
 
     return sph_params
     
@@ -181,7 +183,7 @@ atomtype_numbers = [i+1 for i in xrange(len(atomtypes))]
 for atom in atomtypes:
     atom_params[atom]['A'] = [ i*_conv_a for i in atom_params[atom]['A'] ]
     atom_params[atom]['B'] *= _conv_b
-    atom_params[atom]['C'] = [ i*j for i,j in
+    atom_params[atom]['C'] = [ i**2*j for i,j in
             zip(atom_params[atom]['C'],_conv_cn)]
     atom_params[atom]['alpha'] = (atom_params[atom]['drude_charge'])**2/atom_params[atom]['springcon']
 

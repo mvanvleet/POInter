@@ -2,12 +2,16 @@
 """Contains functional forms used in the main fit_ff_parameters module.
 """
 
+from __future__ import absolute_import
+from __future__ import print_function
 import numpy as np
 from sympy import sqrt, exp, sin, cos, pi
 import sympy as sym
 from sympy.utilities import lambdify
 from scipy.misc import factorial
 import sys
+from six.moves import range
+from six.moves import zip
 
 ####################################################################################################    
 def get_eij(component,rij,bij,aij='1.0',functional_form='born-mayer',slater_correction=True):
@@ -43,15 +47,15 @@ def get_eij(component,rij,bij,aij='1.0',functional_form='born-mayer',slater_corr
         # For dispersion, we just need the exchange energy to get the
         # appropriate dispersion damping energy
         #return get_exchange_energy(rij,bij,functional_form)
-        print 'get_eij routine should not be called to evaluate dispersion.  Call get_dispersion_energy directly.'
+        print('get_eij routine should not be called to evaluate dispersion.  Call get_dispersion_energy directly.')
         sys.exit()
     elif component == 5:
         if functional_form == 'lennard-jones':
-            print 'bij, aij', bij, aij
+            print('bij, aij', bij, aij)
             return get_lj_energy(rij,bij,aij)
         return get_charge_penetration_energy(rij,bij,functional_form)
     else:
-        print 'Unknown energy component!'
+        print('Unknown energy component!')
         sys.exit()
 
 ####################################################################################################    

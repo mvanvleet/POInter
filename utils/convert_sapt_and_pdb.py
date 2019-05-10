@@ -114,6 +114,8 @@ def read_pdb(file):
         else:
             continue
 
+        print positions
+
     return info, np.array(positions,dtype=float)
 ###########################################################################
 

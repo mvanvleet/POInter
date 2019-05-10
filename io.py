@@ -1,6 +1,11 @@
 """
 """
 
+from __future__ import absolute_import
+from __future__ import print_function
+import six
+from six.moves import range
+from six.moves import zip
 __version__ = '1.0.0'
 __author__ = 'Mary Van Vleet'
 
@@ -13,7 +18,7 @@ import json
 import os
 
 # Local Packages
-from methods import default, mastiff
+from .methods import default, mastiff
 
 ############################## Global Variables and Constants ######################################
 # Born-Mayer-sISA scaling exponent, as defined in Van Vleet et al. JCTC 2016
@@ -116,7 +121,7 @@ class Parameters():
         if self.exp_source.lower() == 'read':
             self.readExponents(self.exponent_files,self.exponents)
         elif self.exp_source.lower() == 'ip':
-            print 'exponents from IP!'
+            print('exponents from IP!')
             self.calculateIPExponents()
 
 
@@ -292,14 +297,14 @@ class Parameters():
                     exponent = [float(exponent)*self.exp_scale]
                     if self.ignorecase:
                         atom = atom.upper()
-                    assert not (exponents.has_key(atom) and
+                    assert not (atom in exponents and
                             exponents[atom] != exponent),\
                             overide_error.format(ifile,atom,exponent,exponents[atom])
                     exponents[atom] = exponent
 
         # Make sure all atomtypes have an exponent parameter defined
         for atom in self.atomtypes:
-            assert exponents.has_key(atom),\
+            assert atom in exponents,\
                 missing_error.format(atom,'\n\t\t\t'.join([''] + list(set(exponent_files))))
 
         return
@@ -334,12 +339,12 @@ class Parameters():
         
         '''
 
-        from elementdata import Exponent
+        from .elementdata import Exponent
 
         for atom in self.atomtypes:
             element = self.atomtypes_to_atoms[atom]
             exponent = Exponent(element)
-            if not self.exponents.has_key(atom):
+            if atom not in self.exponents:
                 self.exponents[atom] = [exponent]
             elif checkOveride:
                 # Make sure exponents given in constraints match IP values
@@ -403,9 +408,9 @@ class Parameters():
         # Create params dictionary of dictionaries
         self.params = {}
         for atom in self.constrained_atomtypes:
-            assert constraints.has_key(atom), missing_error.format(
+            assert atom in constraints, missing_error.format(
                             atom,'\n\t\t-- '.join([''] + constraints_files),
-                            '", "'.join(constraints.keys()))
+                            '", "'.join(list(constraints.keys())))
             constraints[atom]['aniso'] = [ np.array(a) for a in constraints[atom]['aniso']]
             constraints[atom]['C'] = np.array(constraints[atom]['C'])
             self.params[atom] = []
@@ -472,12 +477,12 @@ class Parameters():
 
         self.anisotropic_atomtypes = []
         self.anisotropic_symmetries = {}
-        self.anisotropic_axes1 = [ [ [],[] ] for i in xrange(self.natoms1)]
-        self.anisotropic_axes2 = [ [ [],[] ] for i in xrange(self.natoms2)]
+        self.anisotropic_axes1 = [ [ [],[] ] for i in range(self.natoms1)]
+        self.anisotropic_axes2 = [ [ [],[] ] for i in range(self.natoms2)]
         for imon,ifile in enumerate(axes_files):
             with open(ifile,'r') as f:
                 #TODO: Check that using \r\n vs. \n\n is robust
-                sections = f.read().split('\r\n')
+                sections = f.read().split('\n\n')
             anisotropic_lines = [line.split('#')[0] 
                                 for line in sections[0].split('\n') ]
             anisotropic_data = [line.split() for line in anisotropic_lines]
@@ -489,7 +494,7 @@ class Parameters():
                 self.anisotropic_atomtypes.append(line[0])
                 self.anisotropic_symmetries[line[0]] = line[1:]
             
-            print sections
+            print(sections)
             axes_lines = [line.split('#')[0] 
                                 for line in sections[1].split('\n') ]
             axes_data = [line.split() for line in axes_lines]
@@ -582,14 +587,14 @@ class Parameters():
                     ci = np.sqrt([float(i) for i in line[1:]])
                     if self.ignorecase:
                         atom = atom.upper()
-                    assert not (self.Cparams.has_key(atom) and not \
+                    assert not (atom in self.Cparams and not \
                             np.allclose(self.Cparams[atom] , ci )),\
                             overide_error.format(ifile,atom,ci,self.Cparams[atom])
                     self.Cparams[atom] = ci
 
         # Make sure all atomtypes have a dispersion parameter defined
         for atom in self.atomtypes:
-            assert self.Cparams.has_key(atom),\
+            assert atom in self.Cparams,\
                 missing_error.format(atom,'\n\t\t\t'.join([''] + list(set(dispersion_files))))
 
         return
@@ -676,18 +681,18 @@ class Parameters():
                         springcons = [float(coeff) for coeff in line[2:]]
                         drudes = [charge] + springcons
                     else:
-                        raise AssertionError, format_error.format(ifile)
+                        raise AssertionError(format_error.format(ifile))
                     # Check for conflicting parameter definitions
                     if self.ignorecase:
                         atom = atom.upper()
-                    assert not (self.drudes.has_key(atom) and not
+                    assert not (atom in self.drudes and not
                             np.allclose(self.drudes[atom] , drudes)),\
                             overide_error.format(ifile,atom,drudes,self.drudes[atom])
                     self.drudes[atom] = drudes
 
         # Make sure all atomtypes have a drude parameter defined
         for atom in self.atomtypes:
-            assert self.drudes.has_key(atom),\
+            assert atom in self.drudes,\
                 missing_error.format(atom,'\n\t\t\t'.join([''] + list(set(drude_files))))
 
         # Put drude charges and spring coefficients as a list of lists for
@@ -772,7 +777,7 @@ class Energies():
         self.__dict__ = kwargs
 
         for key in ['ignorecase','ncomponents']:
-            assert self.__dict__.has_key(key)
+            assert key in self.__dict__
 
 
 
@@ -812,7 +817,7 @@ class Energies():
             List of all unique atomtypes read in through the QM energy file.
 
         '''
-        print 'Reading in information from the QM Energy file.'
+        print('Reading in information from the QM Energy file.')
 
         try:
             with open(ifile,'r') as f:
@@ -823,13 +828,13 @@ class Energies():
             self.natoms2 = int(lines[self.natoms1+1][0])
 
         except ValueError:
-            print 'Error in reading the QM energy file.'
-            print 'Did you switch the order of the parameter and energy files?\n'
+            print('Error in reading the QM energy file.')
+            print('Did you switch the order of the parameter and energy files?\n')
             raise
         else:
             # Obtain element names from energy file
-            self.atoms1 = [ lines[i][0] for i in xrange(1,self.natoms1+1)]
-            self.atoms2 = [ lines[i][0] for i in xrange(self.natoms1+2,self.natoms1+self.natoms2+2)]
+            self.atoms1 = [ lines[i][0] for i in range(1,self.natoms1+1)]
+            self.atoms2 = [ lines[i][0] for i in range(self.natoms1+2,self.natoms1+self.natoms2+2)]
 
             if self.ignorecase:
                 self.atoms1 = [ atom.upper() for atom in self.atoms1 ]
@@ -840,19 +845,19 @@ class Energies():
             self.ndatpts = lines.count([]) # count number of blank lines
             self.xyz1 = np.zeros((self.ndatpts,self.natoms1,3))
             self.xyz2 = np.zeros((self.ndatpts,self.natoms2,3))
-            self.qm_energy = [ [] for i in xrange(self.ncomponents)]
-            for i in xrange(self.ndatpts):
+            self.qm_energy = [ [] for i in range(self.ncomponents)]
+            for i in range(self.ndatpts):
                 # Monomer 1 geometry array:
-                for j in xrange(self.natoms1):
-                    k = i*nlines/self.ndatpts+j+1
-                    self.xyz1[i,j,:] = np.array([float(lines[k][l]) for l in xrange(1,4)])
+                for j in range(self.natoms1):
+                    k = int(i*nlines/self.ndatpts+j+1)
+                    self.xyz1[i,j,:] = np.array([float(lines[k][l]) for l in range(1,4)])
                 # Monomer 2 geometry array:
-                for j in xrange(self.natoms2):
-                    k = i*nlines/self.ndatpts+j+self.natoms1+2
-                    self.xyz2[i,j,:] = np.array([float(lines[k][l]) for l in xrange(1,4)])
+                for j in range(self.natoms2):
+                    k = int(i*nlines/self.ndatpts+j+self.natoms1+2)
+                    self.xyz2[i,j,:] = np.array([float(lines[k][l]) for l in range(1,4)])
 
                 # QM Energy array:
-                j = i*nlines/self.ndatpts+self.natoms1+self.natoms2+2
+                j = int(i*nlines/self.ndatpts+self.natoms1+self.natoms2+2)
 
                 self.qm_energy[0].append(float(lines[j+1][1])) # exchange 
                 self.qm_energy[1].append(float(lines[j][1])) # electrostatics
@@ -932,7 +937,7 @@ class Settings(object):
         # Set up list of recognized settings; these are primarily found in
         # methods/default.py, but some additional required/optional arguments
         # are explicitly listed below
-        self.recognized_settings = self.settings.keys()
+        self.recognized_settings = list(self.settings.keys())
         self.required_user_settings = ['mon1','mon2']
         self.optional_user_settings = ['energy_file',
                                        'multipole_file1','multipole_file2',
@@ -1008,7 +1013,7 @@ class Settings(object):
         # Make sure all *non-optional* recognized keys have been defined somewhere, either in
         # methods/default.py, or by the user.
         for key in set(self.recognized_settings) - set(self.optional_user_settings):
-            assert self.settings.has_key(key), missing_error_message.format(key)
+            assert key in self.settings, missing_error_message.format(key)
 
         # If the user hasn't specified some of the *optional* user settings,
         # use default settings for these variables.
@@ -1017,7 +1022,7 @@ class Settings(object):
         mon2 = self.settings['mon2']
         multipoles_suffix = self.settings['multipoles_suffix']
         for key in self.optional_user_settings:
-            if not self.settings.has_key(key):
+            if key not in self.settings:
                 if key in ['ofile_prefix','file_prefix']:
                     self.settings['ofile_prefix'] = ''
                 elif key in ['ofile_suffix','file_suffix']:
@@ -1099,7 +1104,7 @@ class Settings(object):
                     self.pointer_settings['slater_correction'] = True
                 elif v.lower() == 'born-mayer-sisa':
                     self.pointer_settings['exp_scale'] = _bmsisa_exp_scale
-                    print 'Exponents are being scaled from input values by a scale factor of', _bmsisa_exp_scale
+                    print('Exponents are being scaled from input values by a scale factor of', _bmsisa_exp_scale)
                 elif v.lower() == 'born-mayer-ip':
                     self.pointer_settings['exp_source'] = 'ip'
                 else:
@@ -1119,7 +1124,7 @@ class Settings(object):
     def get_variables_from_module(self,module):
         book = {}
         if module:
-            book = {key: value for key, value in module.__dict__.iteritems() if
+            book = {key: value for key, value in six.iteritems(module.__dict__) if
                     not (key.startswith('__') or key.startswith('_'))}
         return book
 ####################################################################################################    

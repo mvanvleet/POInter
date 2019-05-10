@@ -1,4 +1,6 @@
 # Standard Packages
+from __future__ import absolute_import
+from __future__ import print_function
 import numpy as np
 import sys
 import os
@@ -6,7 +8,8 @@ import sympy as sp
 from sympy.utilities import lambdify
 
 # Local Packages
-from multipoles import Multipoles
+from .multipoles import Multipoles
+from six.moves import range
 
 # Numpy error message settings
 np.seterr(under='ignore')
@@ -189,13 +192,12 @@ class Drudes:
         self.damp_charges_only = damp_charges_only
         if self.inter_damping_type == 'Tang-Toennies':
             if self.exponents.shape[-2:] != (1,1):
-                raise NotImplementedError,\
-                        '''The mathematical form of the Tang-Toennies damping differs if
+                raise NotImplementedError('''The mathematical form of the Tang-Toennies damping differs if
                         the repulsive potential is comprised of multiple
                         exponents (see Tang, K. T.; Toennies, J. P.  Surf.
                         Sci. 1992, 279, L203-L206 for details), and this
                         (more complicated) functional form has not yet
-                        been included in this fitting program.'''
+                        been included in this fitting program.''')
         # For now, only use first (and due to check above, only) exponent
         # for each atomtype
         self.exponents = np.squeeze(self.exponents,axis=(-2,-1))
@@ -353,7 +355,7 @@ class Drudes:
             import dill 
             import pickle
             dill.settings['recurse'] = True
-            print 'loaded dill functionality'
+            print('loaded dill functionality')
             with open(self.fpik,'rb') as f:
                 slater_tt_damp_inter = dill.load(f)
                 slater_tt_del_damp_inter = dill.load(f)
@@ -373,7 +375,7 @@ class Drudes:
             # and Tang-Toennies damping functions. Note that, for all
             # intramolecular contacts, Thole screening will be used, while all
             # intermolecular contacts will be damped via Tang-Toennies screening.
-            print 'Creating numerical subroutines for damping functions.'
+            print('Creating numerical subroutines for damping functions.')
             bij, ai, aj, p, xij, yij, zij = sp.symbols("bij ai aj p xij yij zij")
             noslater_tt_damp_inter = lambdify((bij,xij,yij,zij),\
                                     self.get_tt_damping_factor(bij,xij,yij,zij,
@@ -423,8 +425,8 @@ class Drudes:
                 pass
             else:
                 with open(self.fpik,'wb') as f:
-                    print 'Saving numerical subroutines for damping functions to file:'
-                    print self.fpik
+                    print('Saving numerical subroutines for damping functions to file:')
+                    print(self.fpik)
 
                     dill.dump(noslater_tt_damp_inter, f)
                     dill.dump(noslater_tt_del_damp_inter, f)
@@ -440,11 +442,11 @@ class Drudes:
 
         # Set appropriate damping functions as class variables
         if self.intra_damping_type.lower() == 'thole_linear':
-            print 'Thole damping type set to: linear'
+            print('Thole damping type set to: linear')
             self.damp_intra = linear_damp_intra
             self.del_damp_intra = linear_del_damp_intra
         elif self.intra_damping_type.lower() == 'thole_tinker':
-            print 'Thole damping type set to: Tinker-style'
+            print('Thole damping type set to: Tinker-style')
             self.damp_intra = tinker_damp_intra
             self.del_damp_intra = tinker_del_damp_intra
         else:
@@ -499,8 +501,7 @@ class Drudes:
         elif combination_rule == 'geometric_mean':
             p = np.sqrt(p1*p2)
         else:
-            raise InputError,\
-                combination_rule + ' is not a valid combination rule for the Thole screening parameter.'
+            raise InputError(combination_rule + ' is not a valid combination rule for the Thole screening parameter.')
 
         return p
 ####################################################################################################    
@@ -532,7 +533,7 @@ class Drudes:
         old_forces1=old_forces2 = 0.0 #values here are placeholders only
         old_search_vec1=old_search_vec2 = 0.0
 
-        print 'Converging drude oscillator positions:',
+        print('Converging drude oscillator positions:', end=' ')
 
         while not converged:
             #sys.stdout.write('.')
@@ -550,7 +551,7 @@ class Drudes:
             self.update_multipole_moments()
 
             forces1 = np.zeros_like(self.xyz1)
-            for i in xrange(self.natoms1):
+            for i in range(self.natoms1):
                 # Compute forces on drude particles due to surrounding efield
                 if np.abs(self.qshell1[i]) > self.small_q:
                     # Avoid unnecessary computation of get_efield if qshell is
@@ -580,7 +581,7 @@ class Drudes:
 
             # Repeat above procedure for monomer 2
             forces2 = np.zeros_like(self.xyz2)
-            for i in xrange(self.natoms2):
+            for i in range(self.natoms2):
                 if np.abs(self.qshell2[i]) > self.small_q:
                     forces2[:,i,:] = self.qshell2[i]*self.get_efield(i,mon=2) 
             x1 = self.shell_xyz2
@@ -629,8 +630,8 @@ class Drudes:
 
         sys.stdout.write('\n')
         if self.verbose:
-            print 'Drude oscillators converged in iterno ',iterno, ' with maximum forces ',\
-                    np.amax(forces1), ' and ', np.amax(forces2), 'in any direction.'
+            print('Drude oscillators converged in iterno ',iterno, ' with maximum forces ',\
+                    np.amax(forces1), ' and ', np.amax(forces2), 'in any direction.')
         return self.shell_xyz1, self.shell_xyz2
 ####################################################################################################    
 
@@ -792,7 +793,7 @@ class Drudes:
         p1 = pi[ishell]
 
         # First, compute field due to intramolecular drude oscillators
-        for i in xrange(natoms_i):
+        for i in range(natoms_i):
             if i == ishell: # Ignore self-interaction, zero-charge oscillators
                 continue
             q2 = qshell_i[i]
@@ -818,7 +819,7 @@ class Drudes:
         # Second, compute field due to intermolecular permanent charges and
         # drude oscillators:
         multipole_efield = np.zeros_like(efield)
-        for j in xrange(natoms_j):
+        for j in range(natoms_j):
 
             # Get parameters for damping functions
             a1 = ai[ishell]

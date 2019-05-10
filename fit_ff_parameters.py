@@ -1,4 +1,9 @@
 #!/share/apps/python
+from __future__ import absolute_import
+from __future__ import print_function
+from six.moves import filter
+from six.moves import range
+from six.moves import zip
 __version__ = '2.0.0'
 
 # Standard Packages
@@ -15,9 +20,9 @@ from collections import OrderedDict
 import json
 
 # Local modules
-import functional_forms 
-from multipoles import Multipoles
-import io
+from . import functional_forms 
+from .multipoles import Multipoles
+from . import io
 
 # Numpy error message settings
 #np.seterr(all='raise')
@@ -401,11 +406,11 @@ class FitFFParameters:
         self.write_output_file()
         self.write_constraints_file()
 
-        print
-        print '============================================'
-        print 'Finished fitting all force field parameters.' 
-        print '============================================'
-        print
+        print()
+        print('============================================')
+        print('Finished fitting all force field parameters.') 
+        print('============================================')
+        print()
 
         return
 ####################################################################################################    
@@ -431,7 +436,7 @@ class FitFFParameters:
         for k,v in pointer_settings.items():
             setattr(self,k,v)
 
-        print config
+        print(config)
         directory = os.path.dirname(self.output_settings_file)
         # Create any subdirectories implicitly specified by the user in
         # self.output_settings_file
@@ -554,7 +559,7 @@ class FitFFParameters:
 
         # Multipole and drude modules treat exponents as an array; save
         # exponents in this format for use in these modules
-        self.all_exponents = [ [] for i in xrange(self.natoms1)]
+        self.all_exponents = [ [] for i in range(self.natoms1)]
         for i,atom1 in enumerate(self.atoms1):
             for atom2 in self.atoms2:
                 bi = self.exponents[atom1]
@@ -589,13 +594,13 @@ class FitFFParameters:
         # isotropic or anisotropic
         self.atoms1_anisotropic = []
         self.atoms2_anisotropic = []
-        for i in xrange(self.natoms1):
+        for i in range(self.natoms1):
             atom1 = self.atoms1[i]
             if atom1 in self.fit_anisotropic_atomtypes + self.constrained_anisotropic_atoms:
                 self.atoms1_anisotropic.append(True)
             else:
                 self.atoms1_anisotropic.append(False)
-        for i in xrange(self.natoms2):
+        for i in range(self.natoms2):
             atom2 = self.atoms2[i]
             if atom2 in self.fit_anisotropic_atomtypes + self.constrained_anisotropic_atoms:
                 self.atoms2_anisotropic.append(True)
@@ -609,33 +614,33 @@ class FitFFParameters:
         self.create_angular_dependence_tables()
 
         # Print out summary of initialized parameters to the user
-        print '############################################################'
-        print '                     Welcome to POInter!                    '
-        print '############################################################'
-        print 'The program has located the following '+str(len(self.atomtypes))+\
-                ' atomtypes, '
-        print ' split into isotropic and anisotropic atomtypes as shown below.'
+        print('############################################################')
+        print('                     Welcome to POInter!                    ')
+        print('############################################################')
+        print('The program has located the following '+str(len(self.atomtypes))+\
+                ' atomtypes, ')
+        print(' split into isotropic and anisotropic atomtypes as shown below.')
         string = '\tIsotropic Atomtypes:   '+'{:4s}'*len(self.isotropic_atomtypes)
-        print string.format(*self.isotropic_atomtypes)
+        print(string.format(*self.isotropic_atomtypes))
         string = '\tAnisotropic Atomtypes: '+'{:4s}'*len(self.anisotropic_atomtypes)
-        print string.format(*self.anisotropic_atomtypes)
-        print
-        print 'Of the above atomtypes, the following will be fit:'
-        print ' (the rest have been entered as constraints)'
+        print(string.format(*self.anisotropic_atomtypes))
+        print()
+        print('Of the above atomtypes, the following will be fit:')
+        print(' (the rest have been entered as constraints)')
         string = '\tIsotropic Atomtypes to Fit:   '+'{:4s}'*len(self.fit_isotropic_atomtypes)
-        print string.format(*self.fit_isotropic_atomtypes)
+        print(string.format(*self.fit_isotropic_atomtypes))
         string = '\tAnisotropic Atomtypes to Fit: '+'{:4s}'*len(self.fit_anisotropic_atomtypes)
-        print string.format(*self.fit_anisotropic_atomtypes)
-        print
-        print 'Each anisotropic term will include the following '
-        print 'spherical harmonic terms:'
+        print(string.format(*self.fit_anisotropic_atomtypes))
+        print()
+        print('Each anisotropic term will include the following ')
+        print('spherical harmonic terms:')
         for atom in self.anisotropic_atomtypes:
             sphharm = self.anisotropic_symmetries[atom]
             string = '\t{:>2s}:  '+'{:>5s},'*(len(sphharm)-1)+'{:>5s}'
-            print string.format(atom,*sphharm)
-        print
+            print(string.format(atom,*sphharm))
+        print()
 
-        print '############################################################'
+        print('############################################################')
 
         return
 ####################################################################################################    
@@ -662,10 +667,10 @@ class FitFFParameters:
         if self.component == 0:
             # Update exponents dictionary
             self.exponents = { atom : [self.params[atom][i]['B'] for i in
-                                xrange(len(self.exponents[atom]))] for atom in self.atomtypes }
+                                range(len(self.exponents[atom]))] for atom in self.atomtypes }
 
             # Save array of exponents for later use
-            self.all_exponents = [ [] for i in xrange(self.natoms1)]
+            self.all_exponents = [ [] for i in range(self.natoms1)]
             for i,atom1 in enumerate(self.atoms1):
                 for atom2 in self.atoms2:
                     pi = self.params[atom1]
@@ -683,7 +688,7 @@ class FitFFParameters:
         elif self.component == 2 and self.separate_induction_exponents:
             # Update induction exponents dictionary
             self.induction_exponents = { atom : [self.params[atom][i]['Bind'] for i in
-                                xrange(len(self.induction_exponents[atom]))] for atom in self.atomtypes }
+                                range(len(self.induction_exponents[atom]))] for atom in self.atomtypes }
         else:
             sys.exit('This subroutine should not be accessed outside of the exchange (and possibly induction) fitting subroutines.')
 
@@ -732,7 +737,7 @@ class FitFFParameters:
         elif combination_rule == 'arithmetic_mean':
             bij = (bi + bj)/2
         else:
-            print combination_rule + ' not a known combination rule.'
+            print(combination_rule + ' not a known combination rule.')
             sys.exit()
 
         return bij
@@ -781,7 +786,7 @@ class FitFFParameters:
         elif combination_rule == 'stone':
             aij = (ai + aj)/bij
         else:
-            print combination_rule + ' not a known combination rule.'
+            print(combination_rule + ' not a known combination rule.')
             sys.exit()
 
 
@@ -812,7 +817,7 @@ class FitFFParameters:
         if combination_rule == 'geometric':
             cij = ci*cj
         else:
-            print combination_rule + ' not a known combination rule.'
+            print(combination_rule + ' not a known combination rule.')
             sys.exit()
 
         return cij
@@ -930,7 +935,7 @@ class FitFFParameters:
             monomer 2.
         
         '''
-        print 'Setting up table of angular dependencies for anisotropic atoms.'
+        print('Setting up table of angular dependencies for anisotropic atoms.')
 
         # Initialize angles array
         self.angles1 = np.zeros((self.natoms1,self.natoms2,2,self.ndatpts))
@@ -943,14 +948,14 @@ class FitFFParameters:
         self.axes2[:,:] = np.eye(3)
 
         # Compute angular dependence table for atoms in monomer 1
-        for i in xrange(self.natoms1):
+        for i in range(self.natoms1):
             if self.atoms1_anisotropic[i]:
                 #if self.anisotropic_axes1[i][0] == [] or self.anisotropic_axes1[i][1] == []:
                 if self.anisotropic_axes1[i][0] == []:
-                    print '----------- WARNING -------------------'
-                    print 'No Z axis has been specified for atom '+str(i)+' in monomer 1.'
-                    print 'Please specify a z axis for this atom.'
-                    print '---------------------------------------'
+                    print('----------- WARNING -------------------')
+                    print('No Z axis has been specified for atom '+str(i)+' in monomer 1.')
+                    print('Please specify a z axis for this atom.')
+                    print('---------------------------------------')
                     sys.exit()
                 # Depending on whether the axes specification has 2 or 3
                 # indices listed, we'll treat the axes as the vector between 2
@@ -969,8 +974,8 @@ class FitFFParameters:
                     z_axis /= np.sqrt((z_axis ** 2).sum(-1))[..., np.newaxis] #Normalize
 
                 else:
-                    print 'You must specify exactly two or three atomic indices for atom ' + str(i) + ' in monomer 1.' 
-                    print 'The program does not know how to handle more or less atomic indices than what you have prescribed.'
+                    print('You must specify exactly two or three atomic indices for atom ' + str(i) + ' in monomer 1.') 
+                    print('The program does not know how to handle more or less atomic indices than what you have prescribed.')
                     sys.exit()
 
                 if len(self.anisotropic_axes1[i][1]) == 2:
@@ -986,12 +991,12 @@ class FitFFParameters:
                     vec = np.array([1,0,0])
                     if np.array_equal(z_axis, vec) or np.array_equal(z_axis, -vec):
                         vec = np.array([0,1,0])
-                    print 'Since no x-axis was specified for atom ' \
-                            + str(i) + ' in monomer 1,'
-                    print 'assuming that atomtype no x/y angular dependence.'
+                    print('Since no x-axis was specified for atom ' \
+                            + str(i) + ' in monomer 1,')
+                    print('assuming that atomtype no x/y angular dependence.')
                 else:
-                    print 'You must specify exactly zero, two, or three atomic indices for each atom.' 
-                    print 'The program does not know how to handle more or less atomic indices than what you have prescribed.'
+                    print('You must specify exactly zero, two, or three atomic indices for each atom.') 
+                    print('The program does not know how to handle more or less atomic indices than what you have prescribed.')
                     sys.exit()
                 x_axis = self.project_onto_plane(vec,z_axis)
 
@@ -1001,27 +1006,27 @@ class FitFFParameters:
                 self.axes1[:,i,1] = y_axis
                 self.axes1[:,i,2] = z_axis
 
-                for j in xrange(self.natoms2):
+                for j in range(self.natoms2):
                     theta, phi = self.get_angle(i,z_axis,x_axis,j,mon1=True)
                     self.angles1[i][j][0,:] = theta
                     self.angles1[i][j][1,:] = phi
 
             else:
                 if self.anisotropic_axes1[i] != [[],[]]:
-                    print 'Coordinate axes cannot be used for isotropic atoms.'
-                    print 'Please either list atom '+str(i)+\
+                    print('Coordinate axes cannot be used for isotropic atoms.')
+                    print('Please either list atom '+str(i)+\
                             ' in monomer 1 as anisotropic or remove the line' +\
-                            ' specifying a coordinate axis for this atom.'
+                            ' specifying a coordinate axis for this atom.')
                     #sys.exit()
 
         # Compute angular dependence table for atoms in monomer 2
-        for i in xrange(self.natoms2):
+        for i in range(self.natoms2):
             if self.atoms2_anisotropic[i]:
                 if self.anisotropic_axes2[i][0] == []:
-                    print '----------- WARNING -------------------'
-                    print 'No Z axis has been specified for atom '+str(i)+' in monomer 2.'
-                    print 'Please specify a z axis for this atom.'
-                    print '---------------------------------------'
+                    print('----------- WARNING -------------------')
+                    print('No Z axis has been specified for atom '+str(i)+' in monomer 2.')
+                    print('Please specify a z axis for this atom.')
+                    print('---------------------------------------')
                     sys.exit()
                 # Depending on whether the axes specification has 2 or more
                 # indices listed, we'll treat the axes as the vector between 2
@@ -1041,8 +1046,8 @@ class FitFFParameters:
                     z2 = np.mean([self.xyz2[:,j,:] for j in self.anisotropic_axes2[i][0][1:]],axis=0)
                     z_axis = z2 - z1
                 else:
-                    print 'You must specify exactly two or three atomic indices for atom ' + str(i) + ' in monomer 2.' 
-                    print 'The program does not know how to handle more or less atomic indices than what you have prescribed.'
+                    print('You must specify exactly two or three atomic indices for atom ' + str(i) + ' in monomer 2.') 
+                    print('The program does not know how to handle more or less atomic indices than what you have prescribed.')
                     sys.exit()
                 z_axis /= np.sqrt((z_axis ** 2).sum(-1))[..., np.newaxis] #Normalize
 
@@ -1059,16 +1064,16 @@ class FitFFParameters:
                     vec = np.array([1,0,0])
                     if np.array_equal(z_axis, vec) or np.array_equal(z_axis, -vec):
                         vec = np.array([0,1,0])
-                    print 'Since no x-axis was specified for atom ' \
-                            + str(i) + ' in monomer 2,'
-                    print 'assuming that atomtype no x/y angular dependence.'
+                    print('Since no x-axis was specified for atom ' \
+                            + str(i) + ' in monomer 2,')
+                    print('assuming that atomtype no x/y angular dependence.')
                 else:
-                    print 'You must specify exactly zero, two or three atomic indices for atom ' + str(i) + ' in monomer 2.' 
-                    print 'The program does not know how to handle more or less atomic indices than what you have prescribed.'
+                    print('You must specify exactly zero, two or three atomic indices for atom ' + str(i) + ' in monomer 2.') 
+                    print('The program does not know how to handle more or less atomic indices than what you have prescribed.')
                     sys.exit()
                 x_axis = self.project_onto_plane(vec,z_axis)
 
-                for j in xrange(self.natoms1):
+                for j in range(self.natoms1):
                     theta, phi = self.get_angle(i,z_axis,x_axis,j,mon1=False)
                     self.angles2[i][j][0,:] = theta
                     self.angles2[i][j][1,:] = phi
@@ -1081,10 +1086,10 @@ class FitFFParameters:
 
             else:
                 if self.anisotropic_axes2[i] != [[],[]]:
-                    print 'Coordinate axes cannot be used for isotropic atoms.'
-                    print 'Please either list atom '+str(i)+\
+                    print('Coordinate axes cannot be used for isotropic atoms.')
+                    print('Please either list atom '+str(i)+\
                             ' in monomer 2 as anisotropic or remove the line' +\
-                            ' specifying a coordinate axis for this atom.'
+                            ' specifying a coordinate axis for this atom.')
                     #sys.exit()
 
         return self.angles1, self.angles2
@@ -1276,23 +1281,23 @@ class FitFFParameters:
         # If all drude charges are zero, skip oscillator convergence:
         if not self.drude_method == 'read' and np.allclose(self.drude_charges1,np.zeros_like(self.drude_charges1)) \
             and np.allclose(self.drude_charges2,np.zeros_like(self.drude_charges2)):
-            print 'No drude oscillators, so skipping oscillator convergence step.'
+            print('No drude oscillators, so skipping oscillator convergence step.')
             self.edrude_ind = np.zeros_like(self.qm_energy[6])
             self.edrude_dhf = np.zeros_like(self.qm_energy[6])
             return self.edrude_ind, self.edrude_dhf
 
         # Otherwise, get drude oscillator energy from other modules:
         if not self.only_scale_exchange_bii:
-            print 'WARNING: Exponents used in TT damping function arise from '+\
+            print('WARNING: Exponents used in TT damping function arise from '+\
             'the exchange fit, and have not been optimized for the drude '+\
-            'oscillators in particular.'
+            'oscillators in particular.')
         exponents = self.all_exponents
         if self.drude_method == 'multipole-gradient':
-            print 'Calculating drude oscillator energy using a multipole-gradient method'
+            print('Calculating drude oscillator energy using a multipole-gradient method')
             kwargs = {}
             for kw in ['inputdir']:
                 kwargs[kw] = self.__dict__[kw]
-            from drude_oscillators import Drudes
+            from .drude_oscillators import Drudes
             d = Drudes( self.mon1, self.mon2,
                         self.xyz1, self.xyz2, 
                         self.multipole_file1, self.multipole_file2,
@@ -1311,8 +1316,8 @@ class FitFFParameters:
                         self.damp_charges_only,**kwargs)
             self.edrude_ind, self.edrude_dhf = d.get_induction_and_dhf_drude_energy()
         elif self.drude_method == 'finite-differences':
-            print 'Calculating drude oscillator energy using finite-differences'
-            from debug.finite_differences_drude_oscillators import FDDrudes as Drudes
+            print('Calculating drude oscillator energy using finite-differences')
+            from .debug.finite_differences_drude_oscillators import FDDrudes as Drudes
             d = Drudes(self.xyz1, self.xyz2, 
                         self.multipole_file1, self.multipole_file2,
                         self.drude_charges1, self.drude_charges2, 
@@ -1322,8 +1327,8 @@ class FitFFParameters:
                         self.electrostatic_damping_type)
             self.edrude_ind, self.edrude_dhf = d.get_induction_and_dhf_drude_energy()
         elif self.drude_method == 'pointcharge-gradient':
-            print 'Calculating drude oscillator energy.'
-            from debug.pointcharge_drude_oscillators import Drudes 
+            print('Calculating drude oscillator energy.')
+            from .debug.pointcharge_drude_oscillators import Drudes 
             # TODO: charges1 and charges2 are outdated and would need to be
             # read in from multipole_file[1,2]
             d = Drudes(self.xyz1, self.xyz2, 
@@ -1335,7 +1340,7 @@ class FitFFParameters:
                         self.electrostatic_damping_type)
             self.edrude_ind, self.edrude_dhf = d.get_induction_and_dhf_drude_energy()
         elif self.drude_method == 'read':
-            print 'Reading in drude oscillator energy from ',self.drude_read_file
+            print('Reading in drude oscillator energy from ',self.drude_read_file)
             with open(self.drude_read_file,'r') as f:
                 data = np.array([ [float(i) for i in line.split()] 
                                     for line in f.readlines()[1:] ])
@@ -1348,7 +1353,7 @@ class FitFFParameters:
         if self.drude_method != 'read' or self.drude_file != self.drude_read_file:
             with open(self.drude_file,'w') as f:
                 f.write('Edrude_ind \t\t Edrude_dhf\n')
-                for i in xrange(len(self.edrude_ind)):
+                for i in range(len(self.edrude_ind)):
                     f.write('{:16.8f} {:16.8f}\n'.format(self.edrude_ind[i],self.edrude_dhf[i]))
 
         return self.edrude_ind, self.edrude_dhf
@@ -1528,7 +1533,7 @@ class FitFFParameters:
             # an element, and the well depth is (somewhat arbitrarily) set to 0.5 mH.
             from chemistry import elementdata
             from chemistry.constants import ang2bohr
-            elements = [atom[0]+filter(str.islower,atom[1:]) for atom in self.fit_atomtypes]
+            elements = [atom[0]+list(filter(str.islower,atom[1:])) for atom in self.fit_atomtypes]
             sigma0 = np.array([2*elementdata.VdWRadius(e) for e in elements])
             sigma0 *= ang2bohr
             eps = 0.500
@@ -1545,10 +1550,10 @@ class FitFFParameters:
             qm_fit_energy = self.subtract_hard_constraint_energy()
             return self.qm_energy[self.component] - qm_fit_energy
 
-        print '-------------'
-        print 'Optimizing parameters for ' + self.energy_component_names[self.component]
-        print '({} parameters in total)'.format(ntot_params)
-        print '-------------'
+        print('-------------')
+        print('Optimizing parameters for ' + self.energy_component_names[self.component])
+        print('({} parameters in total)'.format(ntot_params))
+        print('-------------')
 
         # To speed up calculations, subtract off energy that is already known
         # on the basis of hard constraints.
@@ -1563,7 +1568,7 @@ class FitFFParameters:
         if len(p0): # Only perform fitting if there are unconstrained parameters
         #if self.component == 4 and len(p0): 
 
-            print 'Optimizing parameters:'
+            print('Optimizing parameters:')
             # pgtol and ftol control convergence criteria. Good convergence
             # seems to be achievable with the values shown here, although in
             # certain cases (particularly if a fit does not look good) these
@@ -1592,13 +1597,13 @@ class FitFFParameters:
             message = res.message
 
             if not res.success:
-                print 'Warning! Optimizer did not terminate successfully, and quit with the following error message:'
-                print
-                print res.message
-                print
+                print('Warning! Optimizer did not terminate successfully, and quit with the following error message:')
+                print()
+                print(res.message)
+                print()
 
         else:
-            print 'All parameters are constrained, so skipping parameter optimization step.'
+            print('All parameters are constrained, so skipping parameter optimization step.')
             popt = []
             success = True
             message = ''
@@ -1617,10 +1622,10 @@ class FitFFParameters:
         self.weighted_rms_error = self.calc_rmse(ff_energy, cutoff=self.weighted_rmse_cutoff)
         self.lsq_error = self.calc_leastsq_ff_fit(popt)[0]
 
-        print '------'
-        print 'RMS Error for the fit to ',\
-                self.energy_component_names[self.component] + ':'
-        print '{:.5e}'.format(self.rms_error)
+        print('------')
+        print('RMS Error for the fit to ',\
+                self.energy_component_names[self.component] + ':')
+        print('{:.5e}'.format(self.rms_error))
 
         self.write_output_file(success,message)
         self.write_energy_file(ff_energy)
@@ -1655,7 +1660,7 @@ class FitFFParameters:
 
         '''
 
-        print 'Subtracting off energy from hard constraints.'
+        print('Subtracting off energy from hard constraints.')
         # Initialize fit array
         qm_fit_energy = np.copy(self.qm_energy[self.component])
 
@@ -1688,11 +1693,11 @@ class FitFFParameters:
 
         # For induction and DHF, subtract off drude oscillator energy
         elif self.component == 2:
-            print 'Subtracting off 2nd order drude oscillator energy'
+            print('Subtracting off 2nd order drude oscillator energy')
             qm_fit_energy -= self.edrude_ind
             
         elif self.component == 3:
-            print 'Subtracting off higher order drude oscillator energies'
+            print('Subtracting off higher order drude oscillator energies')
             qm_fit_energy -= self.edrude_dhf
 
         else:
@@ -1715,10 +1720,10 @@ class FitFFParameters:
                 pair = (atom1,atom2)
                 # Only stored interactions for each interaction once, so
                 # need to check what order cross terms were stored in
-                if self.get_num_eij.has_key(pair):
-                    args = [0 for _ in xrange(self.ntot_params)] + [rij] + [theta1ij] + [theta2ji] +  [phi1ij] + [phi2ji]
+                if pair in self.get_num_eij:
+                    args = [0 for _ in range(self.ntot_params)] + [rij] + [theta1ij] + [theta2ji] +  [phi1ij] + [phi2ji]
                 else:
-                    args = [0 for _ in xrange(self.ntot_params)] + [rij] + [theta2ji] + [theta1ij] +  [phi2ji] + [phi1ij]
+                    args = [0 for _ in range(self.ntot_params)] + [rij] + [theta2ji] + [theta1ij] +  [phi2ji] + [phi1ij]
                     pair = (atom2, atom1)
 
                 if not self.use_cse:
@@ -1842,7 +1847,7 @@ class FitFFParameters:
         shift = self.n_isotropic_params
         dharmonic_error = [ 0 for _ in params]
         for i,atom in enumerate(self.fit_isotropic_atomtypes + self.fit_anisotropic_atomtypes):
-            for ib in xrange(len(self.exponents[atom])):
+            for ib in range(len(self.exponents[atom])):
                 if self.component == 2 and self.separate_induction_exponents:
                     b = mapped_params[i][ib]['Bind']
                     b0 = self.save_induction_exponents[atom][ib]
@@ -1884,7 +1889,7 @@ class FitFFParameters:
         '''
 
 
-        xdata = xrange(len(self.qm_energy[self.component]))
+        xdata = range(len(self.qm_energy[self.component]))
         ff_fit_energy, dff_fit_energy = self.calc_ff_energy(params)
 
         ff_energy = np.array(self.qm_energy[self.component])\
@@ -1968,7 +1973,7 @@ class FitFFParameters:
         rij, theta1ij, theta2ji, phi1ij, phi2ji = \
                 sym.symbols('rij theta1ij theta2ji phi1ij phi2ji')
 
-        print 'Generating subroutines for pairwise interactions.'
+        print('Generating subroutines for pairwise interactions.')
         self.get_num_eij = {}
         for i,atom1 in enumerate(self.atomtypes):
             if self.component == 4:
@@ -2094,7 +2099,7 @@ class FitFFParameters:
 
                 # Only stored interactions for each interaction once, so
                 # need to check what order cross terms were stored in
-                if self.get_num_eij.has_key(pair):
+                if pair in self.get_num_eij:
                     #args = Ai + Aj + [rij] + [theta1ij] + [theta2ji] +  [phi1ij] + [phi2ji]
                     args = list(save_params) + [rij] + [theta1ij] + [theta2ji] +  [phi1ij] + [phi2ji]
                 else:
@@ -2124,20 +2129,20 @@ class FitFFParameters:
                 if self.final_energy_call and self.component == 0:
                     eij_min = np.amin(energy[0])
                     if eij_min < 0:
-                        print 'WARNING: Negative pairwise exchange energies encountered.'
-                        print '     Lowest energy exchange energy:', eij_min
+                        print('WARNING: Negative pairwise exchange energies encountered.')
+                        print('     Lowest energy exchange energy:', eij_min)
 
         # Print and return parameters
         params = save_params
         if self.verbose and not self.final_energy_call:
-            print 'Current parameter values:'
+            print('Current parameter values:')
             for i,atom in enumerate(self.fit_isotropic_atomtypes+self.fit_anisotropic_atomtypes):
-                print atom, params[i]
+                print(atom, params[i])
         if self.final_energy_call:
             if len(params):
-                print 'Final parameter values:'
+                print('Final parameter values:')
                 for i,atom in enumerate(self.fit_isotropic_atomtypes+self.fit_anisotropic_atomtypes):
-                    print atom, self.map_params(params)[i]
+                    print(atom, self.map_params(params)[i])
             self.output_params(params)
             self.final_energy_call = False
 
@@ -2388,19 +2393,19 @@ class FitFFParameters:
 
         '''
         if self.component != 4:
-            print 'This subroutine should not be called except to calculate the dispersion energy (self.component = 4).'
+            print('This subroutine should not be called except to calculate the dispersion energy (self.component = 4).')
             sys.exit()
 
         if self.exact_radial_correction:
-            print 'Dispersion energies are not implemented for the exact Slater overlap; Program exiting.'
+            print('Dispersion energies are not implemented for the exact Slater overlap; Program exiting.')
             sys.exit()
 
-        print 'Evaluating Dispersion energies from input Cn coefficients.'
+        print('Evaluating Dispersion energies from input Cn coefficients.')
 
         dispersion_energy = np.zeros_like(self.qm_energy[self.component])
-        for i in xrange(self.natoms1):
+        for i in range(self.natoms1):
             atom1 = self.atoms1[i]
-            for j in xrange(self.natoms2):
+            for j in range(self.natoms2):
                 atom2 = self.atoms2[j]
 
                 ci = self.Cparams[atom1]
@@ -2728,7 +2733,7 @@ class FitFFParameters:
                 else:
                     f.write('Exponents:\n')
                 for atom in self.atomtypes:
-                    for ib in xrange(len(self.exponents[atom])):
+                    for ib in range(len(self.exponents[atom])):
                         name = atom + '(' + str(ib) + ')'
                         template = '{:10s} {:8.6f}\n'
                         b = self.params[atom][ib]['B']
@@ -2779,7 +2784,7 @@ class FitFFParameters:
                     else:
                         f.write('Induction Exponents:\n')
                     for atom in self.atomtypes:
-                        for ib in xrange(len(self.induction_exponents[atom])):
+                        for ib in range(len(self.induction_exponents[atom])):
                             name = atom + '(' + str(ib) + ')'
                             template = '{:10s} {:8.6f}\n'
                             b = self.params[atom][ib]['Bind']
@@ -2827,7 +2832,7 @@ class FitFFParameters:
             elif self.component == 6:
                 f.write('Total Energy:\n')
             else:
-                print 'Writing output file not yet implemented for component ',self.component
+                print('Writing output file not yet implemented for component ',self.component)
                 sys.exit()
 
 
@@ -2863,7 +2868,7 @@ class FitFFParameters:
                 if not self.constrained_atomtypes:
                     f.write('  None\n')
             else:
-                fit_list = range(0,4)
+                fit_list = list(range(0,4))
                 if self.fit_dispersion:
                     fit_list += [4]
                 if self.fit_residuals:
@@ -2873,7 +2878,7 @@ class FitFFParameters:
                     for i,atom in enumerate(self.fit_isotropic_atomtypes):
                         template='{:5s}   '+'{:^16s}\n'
                         f.write(template.format('','A'))
-                        for ib in xrange(len(self.exponents[atom])):
+                        for ib in range(len(self.exponents[atom])):
                             name = atom + '(' + str(ib) + ')'
                             a = self.params[atom][ib]['A'][self.component]
                             template='{:5s}'+'{:16.6f}\n'
@@ -2882,7 +2887,7 @@ class FitFFParameters:
                         template='{:5s}   '+'{:^16s}'*(len(self.anisotropic_symmetries[atom])+1)+'\n'
                         args = ['a_' + y for y in self.anisotropic_symmetries[atom] ]
                         f.write(template.format('','A',*args))
-                        for ib in xrange(len(self.exponents[atom])):
+                        for ib in range(len(self.exponents[atom])):
                             name = atom + '(' + str(ib) + ')'
                             a = self.params[atom][ib]['A'][self.component]
                             aniso = self.params[atom][ib]['aniso'][self.component]
@@ -2897,7 +2902,7 @@ class FitFFParameters:
                             template='{:5s}   '+'{:^16s}'*(len(self.anisotropic_symmetries[atom])+1)+'\n'
                             args = ['a_' + y for y in self.anisotropic_symmetries[atom] ]
                             f.write(template.format('','A',*args))
-                            for ib in xrange(len(self.exponents[atom])):
+                            for ib in range(len(self.exponents[atom])):
                                 name = atom + '(' + str(ib) + ')'
                                 a = self.params[atom][ib]['A'][self.component]
                                 aniso = self.params[atom][ib]['aniso'][self.component]
@@ -2906,7 +2911,7 @@ class FitFFParameters:
                         else:
                             template='{:5s}   '+'{:^16s}\n'
                             f.write(template.format('','A'))
-                            for ib in xrange(len(self.exponents[atom])):
+                            for ib in range(len(self.exponents[atom])):
                                 name = atom + '(' + str(ib) + ')'
                                 a = self.params[atom][ib]['A'][self.component]
                                 template='{:5s}'+'{:16.6f}\n'
@@ -2989,7 +2994,7 @@ class FitFFParameters:
 
         output_params = {}
         for atom in self.atomtypes:
-            for ib in xrange(len(self.exponents[atom])):
+            for ib in range(len(self.exponents[atom])):
                 # Write all necessary params to file
                 if ib != 0:
                     name = atom + '(' + str(ib) + ')'
@@ -3001,7 +3006,7 @@ class FitFFParameters:
                 B = self.params[atom][ib]['B']
                 C = self.params[atom][ib]['C']
                 C = C.tolist()
-                if self.anisotropic_symmetries.has_key(atom):
+                if atom in self.anisotropic_symmetries:
                     sph_harm = self.anisotropic_symmetries[atom]
                 else:
                     sph_harm = []
@@ -3088,12 +3093,12 @@ class FitFFParameters:
 
         return
 
-        print 'Calculating drude oscillator energy using a multipole-gradient method'
-        from drude_oscillators import Drudes
+        print('Calculating drude oscillator energy using a multipole-gradient method')
+        from .drude_oscillators import Drudes
         import sys
         modulenames = set(sys.modules)&set(globals())
         allmodules = [sys.modules[name] for name in modulenames]
-        print allmodules
+        print(allmodules)
         #Multipoles()
         Drudes()
         d = Drudes( self.mon1, self.mon2,
@@ -3165,8 +3170,8 @@ class FitFFParameters:
         else:
             exponents = self.all_exponents
 
-        print 'Calculating drude oscillator energy using a multipole-gradient method'
-        from drude_oscillators import Drudes
+        print('Calculating drude oscillator energy using a multipole-gradient method')
+        from .drude_oscillators import Drudes
         d = Drudes(self.xyz1, self.xyz2, 
                     self.multipole_file1, self.multipole_file2,
                     self.axes1,self.axes2,
@@ -3201,7 +3206,7 @@ class FitFFParameters:
         #d.find_drude_positions()
         efield = d.get_efield(0,mon=2)
         template = '{:16.8f}'*3 + '\n'
-        print 'writing efield file'
+        print('writing efield file')
         with open('test_efield.dat','w') as f:
             f.write('Efield\n')
             for line in efield:
@@ -3225,7 +3230,7 @@ class FitFFParameters:
 
         sys.exit()
 
-        print 'Dispersion tests:'
+        print('Dispersion tests:')
 
         # Compute the dispersion energy and output to file; parameters may not
         # be fit here
@@ -3350,8 +3355,8 @@ class FitFFParameters:
         with open(ifile,'r') as f:
             data = [line.split() for line in f.readlines()]
 
-        start = [ i for i in xrange(len(data)) if 'total' in data[i] ][0] + 1
-        end = [ i for i in xrange(len(data)) if data[i] and data[i][0] == 'Finished'][0] - 1
+        start = [ i for i in range(len(data)) if 'total' in data[i] ][0] + 1
+        end = [ i for i in range(len(data)) if data[i] and data[i][0] == 'Finished'][0] - 1
         self.multipole_energy = np.array([ float(i[-5]) for i in data[start:end]])
 
 

@@ -1,5 +1,7 @@
 # Standard Packages
 #from __future__ import division
+from __future__ import absolute_import
+from __future__ import print_function
 import numpy as np
 import sys
 import sympy as sp
@@ -8,8 +10,10 @@ from sympy.utilities import lambdify
 from warnings import warn
 
 # Local Packages
-from functional_forms import get_damping_factor
-import rotations
+from .functional_forms import get_damping_factor
+from . import rotations
+from six.moves import range
+from six.moves import zip
 # Numpy error message settings
 #np.seterr(all='raise')
 
@@ -105,10 +109,10 @@ class Multipoles:
         self.damp_charges_only = damp_charges_only
         if self.damping_type == 'Tang-Toennies':
             if not self.damp_charges_only:
-                print '''WARNING: Haven't yet figured out TT damp for
+                print('''WARNING: Haven't yet figured out TT damp for
                 multipoles; currently using a formula that makes intuitive
                 sense by that may not be entirely accurate. Make MVV check
-                this.'''
+                this.''')
 
         self.natoms1 = len(self.xyz1[0])
         self.natoms2 = len(self.xyz2[0])
@@ -301,8 +305,8 @@ class Multipoles:
 
         # Calculate the multipole energy for the overall system
         self.multipole_energy = np.zeros_like(self.xyz1[:,0,0])
-        for i in xrange(self.natoms1):
-            for j in xrange(self.natoms2):
+        for i in range(self.natoms1):
+            for j in range(self.natoms2):
                 for qi in self.multipoles1[i].keys():
                     for qj in self.multipoles2[j].keys():
                         int_type = (qi,qj)
@@ -373,7 +377,7 @@ class Multipoles:
             if not axis[0]:
                 moments = ['Q10','Q20']
                 for sph in moments:
-                    assert not (multipole.has_key(sph) and abs(multipole[sph] > tol)),\
+                    assert not (sph in multipole and abs(multipole[sph] > tol)),\
                         warning_template.format(axes_file,'z',atom,sph,multipole_file,
                         multipole_text)
             # If an x-axis has not been explicitly defined, make sure all
@@ -381,7 +385,7 @@ class Multipoles:
             if not axis[1]:
                 moments = ['Q11c','Q11s','Q21c','Q21s','Q22c','Q22s']
                 for sph in moments:
-                    assert not (multipole.has_key(sph) and abs(multipole[sph] > tol)),\
+                    assert not (sph in multipole and abs(multipole[sph] > tol)),\
                         warning_template.format(axes_file,'x',atom,sph,multipole_file,
                         multipole_text)
 
@@ -527,7 +531,7 @@ class Multipoles:
         multipoles = self.multipoles1 if mon == 1 else self.multipoles2
         point_charges_only = True
         for m in multipoles:
-            if m.keys() == 'Q00':
+            if list(m.keys()) == 'Q00':
                 continue
             for k,v in m.items():
                 if k != 'Q00' and v != 0:
@@ -536,7 +540,7 @@ class Multipoles:
             if not point_charges_only:
                 break
         if point_charges_only:
-            print
+            print()
             warn_text = '''
             The global-to-local axis rotation between the .sapt and .mom
             coordinate systems failed for monomer {}. However, since only
@@ -544,7 +548,7 @@ class Multipoles:
             in unimportant, and POInter will continue running.
             '''.format(mon)
             warn(warn_text,stacklevel=3)
-            print
+            print()
             return
 
         # Otherwise, the local axis rotation does effect the multipole energy, and an error is
@@ -568,7 +572,7 @@ class Multipoles:
 
         transformation_success = False
 
-        print
+        print()
         assert transformation_success, error_text
 ####################################################################################################    
 
@@ -784,7 +788,7 @@ class Multipoles:
 
         '''
 
-        print 'Initializing derivatives for multipole moments.'
+        print('Initializing derivatives for multipole moments.')
         self.delT = {}
 
         if not self.T: #make sure T dictionary has already been created
@@ -796,7 +800,7 @@ class Multipoles:
             if self.limited_delT and '00' not in k:
                 continue
             elif not self.limited_delT:
-                raise NotTestedError, 'Code has not been tested for multipole derivatives aside from those using point charges!'
+                raise NotTestedError('Code has not been tested for multipole derivatives aside from those using point charges!')
 
             # Expand r and the unit vectors of a in terms of xa,ya, and za
             # (the cartesian vector marking the distance and direction from site a to b)
@@ -831,19 +835,19 @@ class Multipoles:
                         for ia in (xa,ya,za) ]
             self.delT[k] = delT
 
-        print 'Finished initializing derivatives for multipole moments.'
+        print('Finished initializing derivatives for multipole moments.')
 
         # If dill module available, save derivatives to file
         try:
             import dill
             dill.settings['recurse'] = True
-            print 'Saving multipoles to file:'
-            print self.fpik
+            print('Saving multipoles to file:')
+            print(self.fpik)
             with open(self.fpik,'wb') as f:
                 dill.dump(self.delT, f)
 
         except ImportError:
-            print 'For computational efficiency, download the dill module in order to serialize derivatives of multipole moments.'
+            print('For computational efficiency, download the dill module in order to serialize derivatives of multipole moments.')
             pass
 
         return
@@ -977,8 +981,8 @@ class Multipoles:
                 with open(self.fpik,'rb') as f:
                     self.delT = dill.load(f)
                 if self.verbose:
-                    print 'Read in multipole derivatives from the following file:'
-                    print self.fpik
+                    print('Read in multipole derivatives from the following file:')
+                    print(self.fpik)
             except (ImportError, IOError):
                 self.initialize_del_interaction_tensor()
 
@@ -1031,11 +1035,11 @@ class Multipoles:
             #delT = np.sum(eainv*delT[:,np.newaxis,:,np.newaxis], axis=-1)
 
         else: 
-            raise NotImplementedError, '''Higher order derivatives of multipole
+            raise NotImplementedError('''Higher order derivatives of multipole
             moments have not yet been implemented or sufficiently tested,
             however this should be possible to implement if later necessary.
             See source code for my initial guess as to the correct
-            implementation.'''
+            implementation.''')
 
             # WARNING! This code might be right, but I haven't tested it yet
             xa = rb[:,0]
@@ -1111,13 +1115,12 @@ class Multipoles:
                 bij = self.exponents[i][j]
                 tt_order = int(interaction_type[0][1]) + int(interaction_type[1][1]) + 1
                 if bij.shape != (1,1):
-                    raise NotImplementedError,\
-                            '''The mathematical form of the Tang-Toennies damping differs if
+                    raise NotImplementedError('''The mathematical form of the Tang-Toennies damping differs if
                             the repulsive potential is comprised of multiple
                             exponents (see Tang, K. T.; Toennies, J. P.  Surf.
                             Sci. 1992, 279, L203-L206 for details), and this
                             (more complicated) functional form has not yet
-                            been included in this fitting program.'''
+                            been included in this fitting program.''')
                 # Only use the first exponent in calculating the damping
                 # factor; see warning above for dealing with multiple
                 # exponents.
@@ -1127,8 +1130,8 @@ class Multipoles:
             damp = 1
 
         if self.verbose:
-            print 'Interaction Type, Rij, Multipole interaction energy (mH)'
-            print interaction_type[0], interaction_type[1], rij[0], (Qa*T*Qb)[0]*1000
+            print('Interaction Type, Rij, Multipole interaction energy (mH)')
+            print(interaction_type[0], interaction_type[1], rij[0], (Qa*T*Qb)[0]*1000)
 
         return damp*Qa*T*Qb
 ####################################################################################################    
