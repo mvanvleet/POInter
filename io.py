@@ -703,11 +703,11 @@ class Parameters():
         self.drude_charges1 = []
         self.drude_charges2 = []
 
-        for atom in self.atoms1:
+        for atom in self.atomtypes1:
             params = self.drudes[atom]
             self.drude_charges1.append(params[0])
             self.springcon1.append(params[1:])
-        for atom in self.atoms2:
+        for atom in self.atomtypes2:
             params = self.drudes[atom]
             self.drude_charges2.append(params[0])
             self.springcon2.append(params[1:])

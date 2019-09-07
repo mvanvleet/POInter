@@ -560,8 +560,8 @@ class FitFFParameters:
         # Multipole and drude modules treat exponents as an array; save
         # exponents in this format for use in these modules
         self.all_exponents = [ [] for i in range(self.natoms1)]
-        for i,atom1 in enumerate(self.atoms1):
-            for atom2 in self.atoms2:
+        for i,atom1 in enumerate(self.atomtypes1):
+            for atom2 in self.atomtypes2:
                 bi = self.exponents[atom1]
                 bj = self.exponents[atom2]
                 bij = [ [] for _ in bi ]
@@ -595,13 +595,13 @@ class FitFFParameters:
         self.atoms1_anisotropic = []
         self.atoms2_anisotropic = []
         for i in range(self.natoms1):
-            atom1 = self.atoms1[i]
+            atom1 = self.atomtypes1[i]
             if atom1 in self.fit_anisotropic_atomtypes + self.constrained_anisotropic_atoms:
                 self.atoms1_anisotropic.append(True)
             else:
                 self.atoms1_anisotropic.append(False)
         for i in range(self.natoms2):
-            atom2 = self.atoms2[i]
+            atom2 = self.atomtypes2[i]
             if atom2 in self.fit_anisotropic_atomtypes + self.constrained_anisotropic_atoms:
                 self.atoms2_anisotropic.append(True)
             else:
@@ -671,8 +671,8 @@ class FitFFParameters:
 
             # Save array of exponents for later use
             self.all_exponents = [ [] for i in range(self.natoms1)]
-            for i,atom1 in enumerate(self.atoms1):
-                for atom2 in self.atoms2:
+            for i,atom1 in enumerate(self.atomtypes1):
+                for atom2 in self.atomtypes2:
                     pi = self.params[atom1]
                     pj = self.params[atom2]
                     bij = [ [] for _ in pi ]
@@ -1707,8 +1707,8 @@ class FitFFParameters:
             return qm_fit_energy
 
         # Subtract off constrained short-range energies
-        for i, atom1 in enumerate(self.atoms1):
-            for j, atom2 in enumerate(self.atoms2):
+        for i, atom1 in enumerate(self.atomtypes1):
+            for j, atom2 in enumerate(self.atomtypes2):
                 if (atom1 in self.fit_atomtypes or atom2 in self.fit_atomtypes):
                     # If atom pair has free parameters, skip this step
                     continue
@@ -1988,11 +1988,11 @@ class FitFFParameters:
                 # Check that atom pair energy will actually be calculated;
                 # avoid unecessary computation of intramolecular atom pairs 
                 compute = False
-                if atom1 in self.atoms1:
-                    if atom2 in self.atoms2:
+                if atom1 in self.atomtypes1:
+                    if atom2 in self.atomtypes2:
                         compute = True
-                if atom1 in self.atoms2:
-                    if atom2 in self.atoms1:
+                elif atom1 in self.atomtypes2:
+                    if atom2 in self.atomtypes1:
                         compute = True
                 if not compute:
                     continue
@@ -2085,8 +2085,8 @@ class FitFFParameters:
         # Calculate force field energy and derivatives for each atom pair
         ff_energy = np.zeros_like(self.qm_energy[self.component])
         dff_energy = np.array([ np.zeros_like(ff_energy) for _ in save_params ])
-        for i, atom1 in enumerate(self.atoms1):
-            for j, atom2 in enumerate(self.atoms2):
+        for i, atom1 in enumerate(self.atomtypes1):
+            for j, atom2 in enumerate(self.atomtypes2):
                 if not (atom1 in self.fit_atomtypes or atom2 in self.fit_atomtypes):
                     # Constrained energies already subtracted
                     continue
@@ -2404,9 +2404,9 @@ class FitFFParameters:
 
         dispersion_energy = np.zeros_like(self.qm_energy[self.component])
         for i in range(self.natoms1):
-            atom1 = self.atoms1[i]
+            atom1 = self.atomtypes1[i]
             for j in range(self.natoms2):
-                atom2 = self.atoms2[j]
+                atom2 = self.atomtypes2[j]
 
                 ci = self.Cparams[atom1]
                 cj = self.Cparams[atom2]
