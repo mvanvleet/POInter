@@ -438,10 +438,6 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
     trans_local_xyz = local_xyz[np.newaxis,:] - local_xyz[0]
     trans_global_xyz = global_xyz - global_xyz[:,0,np.newaxis]
 
-    print(trans_local_xyz[0,:])
-    print(trans_global_xyz[0,:])
-    print() 
-
     if len(global_xyz[0]) == 1:
         #if xyz is an atom, don't need to rotate local axes
         transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
@@ -464,6 +460,7 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
         print(trans_global_xyz[0])
         print()
         print(np.isclose(trans_local_xyz[:,1],trans_global_xyz[:,1],atol=1e-5))
+        print(trans_local_xyz[:,1]-trans_global_xyz[:,1])
         raise
 
     if len(global_xyz[0]) == 2:
@@ -482,8 +479,8 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
         if not np.allclose(v3,np.zeros_like(v3),atol=1e-8):
             break
     else:
-        # All vectors in molecule are parallel; hopefully molecules are
-        # now aligned
+        # All vectors in molecule are already parallel (i.e. molecular appears
+        # to be planar), in which case coordinate system should already be aligned
         transformation_success = np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
         return rotation_matrix, transformation_success
 

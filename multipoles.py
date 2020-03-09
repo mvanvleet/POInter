@@ -1026,7 +1026,11 @@ class Multipoles:
 
             # Transform to global coordinates
             delT = np.swapaxes(delT,0,1)
-            eainv = np.linalg.inv(ea)
+            try:
+                eainv = np.linalg.inv(ea)
+            except(np.linalg.LinAlgError):
+                print(ea)
+                raise
             ###### OLD CODE ###############
             #eainv = np.linalg.inv(self.ea)
             #delT = np.sum(eainv*delT[:,np.newaxis], axis=-1)
