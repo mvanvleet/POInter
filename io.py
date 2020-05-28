@@ -494,7 +494,6 @@ class Parameters():
                 self.anisotropic_atomtypes.append(line[0])
                 self.anisotropic_symmetries[line[0]] = line[1:]
             
-            print(sections)
             axes_lines = [line.split('#')[0] 
                                 for line in sections[1].split('\n') ]
             axes_data = [line.split() for line in axes_lines]
@@ -1107,6 +1106,9 @@ class Settings(object):
                     print('Exponents are being scaled from input values by a scale factor of', _bmsisa_exp_scale)
                 elif v.lower() == 'born-mayer-ip':
                     self.pointer_settings['exp_source'] = 'ip'
+                elif v.lower() in ['slater-rackers']:
+                    self.pointer_settings['slater_correction'] = True
+                    self.pointer_settings['include_rackers_radial_correction'] = True
                 else:
                     assert False,\
                         '"{}" is not a valid option for {}. '.format(v,k) +\

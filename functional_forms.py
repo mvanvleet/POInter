@@ -8,7 +8,8 @@ import numpy as np
 from sympy import sqrt, exp, sin, cos, pi
 import sympy as sym
 from sympy.utilities import lambdify
-from scipy.misc import factorial
+from scipy.special import factorial
+#from scipy.misc import factorial
 import sys
 from six.moves import range
 from six.moves import zip
@@ -237,6 +238,18 @@ def get_approximate_slater_coulomb_polynomial(bij,rij,normalized=False):
         prefac = (bij**3/(8*np.pi))**(-2)
         return prefac/rij*\
                 (1 + (11.0/16)*(bij*rij) + (3.0/16)*(bij*rij)**2 + (1.0/48)*(bij*rij)**3)
+####################################################################################################    
+
+####################################################################################################    
+def get_approximate_slater_rackers2019_polynomial(bij,rij,normalized=False):
+    '''Computes the approximate form of the charge penetration as given by the
+    non-asymptotic portion of the Coulomb integral for s-type Slater
+    densities. Note that the below expression is only formally exact for
+    bi=bj.
+    '''
+
+    # The unnormalized Slater density is of the form p(r) = exp(-br)
+    return 1.0/rij*(1 + (1.0/2)*(bij*rij) + (3.0/12)*(bij*rij)**2)**2
 ####################################################################################################    
 
 

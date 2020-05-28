@@ -68,6 +68,7 @@ fit_dispersion             =    'anisotropic'
 # Residual error Settings: If set to true, fits a final A parameter to errors in the total
 # energy in an effort to reduce systematic errors in the total energy
 fit_residuals              =    False
+constrain_ab_positive      =    True
 ##########################################################################
 ##########################################################################
 

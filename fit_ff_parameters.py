@@ -242,6 +242,7 @@ class FitFFParameters:
         # overlap of Slater orbitals in the hard constraint energy for
         # electrostatics
         self.include_slater_charge_penetration = False
+        self.include_rackers_radial_correction = False
 
         # Determine whether or not to fit induction exponents separately from
         # exponents that control the remainder of the FF energy
@@ -867,14 +868,16 @@ class FitFFParameters:
         bi_equal_bj = (abs(bi - bj) < tol)
         bij = self.combine_exponent(bi,bj,self.bij_combination_rule,mode='sp')
 
-        #if self.component in [1,2,3] and self.include_slater_charge_penetration:
-        if self.component in [1] and self.include_slater_charge_penetration:
+        if self.component in [1,2,3] and self.include_slater_charge_penetration:
+        #if self.component in [1] and self.include_slater_charge_penetration:
             # Compute the radial pre-factor based on the coulomb integral
             # between Slater orbitals. Currently this coulomb integral is used to
             # evaluate electrostatic and inductive charge penetration.
             assert not self.exact_radial_correction, "Haven't yet coded in exact charge penetration equation"
             return functional_forms.get_approximate_slater_coulomb_polynomial(bij,rij)
             #return functional_forms.get_approximate_slater_coulomb_polynomial(bij,rij,normalized=True)
+        elif self.include_rackers_radial_correction:
+            return functional_forms.get_approximate_slater_rackers2019_polynomial(bij,rij)
 
         else:
             # Compute the radial pre-factor based on the overlap integral
@@ -1424,7 +1427,7 @@ class FitFFParameters:
             bbound = (1e-2,1e0) # epsilon, mH
         else:
             raise NotImplementedError
-        aanisobound = (-1e0,1e0)
+        aanisobound = (-3e0,3e0)
         # For isotropic atomtypes, constrain all parameters to be positive
         # For anisotropic atomtypes, only constrain first (and possibly
         # last) parameters (corresponding to A and B, respectively) to be
