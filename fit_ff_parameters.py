@@ -943,7 +943,13 @@ class FitFFParameters:
 
         # Compute angular dependence table for atoms in monomer 1
         for i in range(self.natoms1):
-            if self.atoms1_anisotropic[i]:
+            axes_needed = (self.atoms1_anisotropic[i] or not self.rigid_monomers)
+            # Note: this axes_needed definition is a bit overkill. Axes are
+            # only needed for non-rigid monomers with non-zero anisotropic
+            # components. If only point charges are used, this is not
+            # neccessary. Can put in a more specific check in the future if
+            # desired.
+            if axes_needed:
                 #if self.anisotropic_axes1[i][0] == [] or self.anisotropic_axes1[i][1] == []:
                 if self.anisotropic_axes1[i][0] == []:
                     print('----------- WARNING -------------------')
@@ -951,10 +957,10 @@ class FitFFParameters:
                     print('Please specify a z axis for this atom.')
                     print('---------------------------------------')
                     sys.exit()
-                # Depending on whether the axes specification has 2 or 3
+                # Depending on whether the axes specification has 2 or 3+
                 # indices listed, we'll treat the axes as the vector between 2
                 # points (in the case of a 2 index list) or as the bisecting
-                # vector for the angle defined by the 3 index list. 
+                # vector for the angle defined by the 3+ index list. 
                 if len(self.anisotropic_axes1[i][0]) == 2:
                     iatom1 = self.anisotropic_axes1[i][0][0]
                     iatom2 = self.anisotropic_axes1[i][0][1]
@@ -966,10 +972,8 @@ class FitFFParameters:
                     z2 = np.mean([self.xyz1[:,j,:] for j in self.anisotropic_axes1[i][0][1:]],axis=0)
                     z_axis = z2 - z1
                     z_axis /= np.sqrt((z_axis ** 2).sum(-1))[..., np.newaxis] #Normalize
-
                 else:
-                    print('You must specify exactly two or three atomic indices for atom ' + str(i) + ' in monomer 1.') 
-                    print('The program does not know how to handle more or less atomic indices than what you have prescribed.')
+                    print('You must specify two or more atomic indices for atom ' + str(i) + ' in monomer 1.') 
                     sys.exit()
 
                 if len(self.anisotropic_axes1[i][1]) == 2:
@@ -1007,15 +1011,14 @@ class FitFFParameters:
 
             else:
                 if self.anisotropic_axes1[i] != [[],[]]:
-                    print('Coordinate axes cannot be used for isotropic atoms.')
-                    print('Please either list atom '+str(i)+\
-                            ' in monomer 1 as anisotropic or remove the line' +\
-                            ' specifying a coordinate axis for this atom.')
+                    print('Coordinate axes are not needed for isotropic atoms such as atom '+str(i))
                     #sys.exit()
 
         # Compute angular dependence table for atoms in monomer 2
         for i in range(self.natoms2):
-            if self.atoms2_anisotropic[i]:
+            axes_needed = (self.atoms2_anisotropic[i] or not self.rigid_monomers)
+            if axes_needed:
+            #if self.atoms2_anisotropic[i]:
                 if self.anisotropic_axes2[i][0] == []:
                     print('----------- WARNING -------------------')
                     print('No Z axis has been specified for atom '+str(i)+' in monomer 2.')
@@ -1040,8 +1043,7 @@ class FitFFParameters:
                     z2 = np.mean([self.xyz2[:,j,:] for j in self.anisotropic_axes2[i][0][1:]],axis=0)
                     z_axis = z2 - z1
                 else:
-                    print('You must specify exactly two or three atomic indices for atom ' + str(i) + ' in monomer 2.') 
-                    print('The program does not know how to handle more or less atomic indices than what you have prescribed.')
+                    print('You must specify two or more atomic indices for atom ' + str(i) + ' in monomer 2.') 
                     sys.exit()
                 z_axis /= np.sqrt((z_axis ** 2).sum(-1))[..., np.newaxis] #Normalize
 
