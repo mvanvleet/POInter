@@ -21,7 +21,7 @@ error_message='''
 ---------------------------------------------------------------------------
 Improperly formatted arguments. Proper usage is as follows:
 
-$ {} <coeffs_ifile> <atomtypes_ifile> <mom_ifile> <axes_ifle>
+$ {} <constraints_ifile> <mom_ifile> <axes_ifle>
 
 (<...> indicates required argument, [...] indicates optional argument)
 ---------------------------------------------------------------------------
@@ -30,7 +30,8 @@ $ {} <coeffs_ifile> <atomtypes_ifile> <mom_ifile> <axes_ifle>
 #thole = 1.0
 # List of all possible spherical harmonic prameters included
 _all_sph = ['y10', 'y20', 'y22c']
-_sph_conv = [np.sqrt(4*np.pi/3), np.sqrt(4*np.pi/5), np.sqrt(4*np.pi/5)]
+#_sph_conv = [np.sqrt(4*np.pi/3), np.sqrt(4*np.pi/5), np.sqrt(4*np.pi/5)]
+_sph_conv = [1,1,1]
 
 # Convert parameters to SimTK unit system (daltons, nm, ps)
 au_to_dalton = 0.000548579909
@@ -40,7 +41,7 @@ au_to_ps = 2.418884254e-5
 _conv_energy = au_to_dalton * au_to_nm**2 / au_to_ps**2
 _conv_a = np.sqrt(_conv_energy)
 _conv_b = 1/au_to_nm
-_conv_cn = [ _conv_energy * au_to_nm **n for n in range(6,14,2) ]
+_conv_cn = [ np.sqrt(_conv_energy * au_to_nm **n) for n in range(6,14,2) ]
 _conv_alpha = au_to_nm**3
 
 
@@ -79,7 +80,7 @@ aniso_pre_text = '''
     exBr = exp(-Br);
     Br = B*r;
     B=sqrt(Bexp1*Bexp2);
-    C6=sqrt(C61*C62); C8=sqrt(C81*C82); C10=sqrt(C101*C102); C12=sqrt(C121*C122)">
+    C6=(C61*C62); C8=(C81*C82); C10=(C101*C102); C12=(C121*C122)">
   <PerParticleParameter name="Aexch"/>
   <PerParticleParameter name="aexch_y10"/>
   <PerParticleParameter name="aexch_y20"/>
@@ -131,14 +132,14 @@ def convert_sph(a_params,param_labels,ncomponents):
     '''
     '''
 
-    sph_params = [[ 0 for j in _all_sph] for i in xrange((ncomponents))]
+    sph_params = [[ 0 for j in _all_sph] for i in range((ncomponents))]
     for i,label in enumerate(param_labels):
         try:
             j = _all_sph.index(label)
         except ValueError:
-            print label, ' is not a valid spherical harmonic!'
+            print(label, ' is not a valid spherical harmonic!')
             sys.exit()
-        for k in xrange(ncomponents):
+        for k in range(ncomponents):
             # Sort and convert from normalized spherical harmonics to
             # unormalized spherical harmonics
             sph_params[k][j] = a_params[k][i]*_sph_conv[j]
@@ -154,11 +155,11 @@ def convert_sph(a_params,param_labels,ncomponents):
 ######################## Command Line Arguments ###########################
 try:
     coeffs_ifile = sys.argv[1]
-    atomtypes_ifile = sys.argv[2]
-    mom_ifile = sys.argv[3]
-    axes_ifile = sys.argv[4]
+    #atomtypes_ifile = sys.argv[2]
+    mom_ifile = sys.argv[2]
+    axes_ifile = sys.argv[3]
 except IndexError:
-    print error_message.format(sys.argv[0])
+    print(error_message.format(sys.argv[0]))
     sys.exit()
 
 
@@ -176,16 +177,15 @@ atom_params = {}
 with open(coeffs_ifile,'r') as f:
     atom_params.update(json.load(f))
 
-atomtypes = atom_params.keys()
-atomtype_numbers = [i+1 for i in xrange(len(atomtypes))]
+atomtypes = list(atom_params.keys())
+atomtype_numbers = [i+1 for i in range(len(atomtypes))]
 
 # Perform unit conversions from a.u. to OpenMM units (nm, dalton, ps)
 for atom in atomtypes:
     atom_params[atom]['A'] = [ i*_conv_a for i in atom_params[atom]['A'] ]
     atom_params[atom]['B'] *= _conv_b
-    atom_params[atom]['C'] = [ i**2*j for i,j in
-            zip(atom_params[atom]['C'],_conv_cn)]
-    atom_params[atom]['alpha'] = (atom_params[atom]['drude_charge'])**2/atom_params[atom]['springcon']
+    atom_params[atom]['C'] = [ i*j for i,j in zip(atom_params[atom]['C'],_conv_cn)]
+    atom_params[atom]['alpha'] = (atom_params[atom]['drude_charge'])**2/atom_params[atom]['springcon']*_conv_alpha
 
     # Correct Adisp param, which should not have been scaled
     iadisp = atom_params[atom]['params_order'].index('Dispersion')
@@ -245,13 +245,13 @@ end_template = '\nBexp="{:8.6e}" C6="{:8.6e}" C8="{:8.6e}" C10="{:8.6e}" C12="{:
 template = ''.join([atom_template, exch_template,elec_template,
                     ind_template,dhf_template,disp_template,end_template])
 
-print '<!--Atomtype map:'
-for i,k in zip(atomtype_numbers,atom_params.keys()):
-    print k, ' = atomtype ',i
-print '-->'
+print('<!--Atomtype map:')
+for i,k in zip(atomtype_numbers,list(atom_params.keys())):
+    print(k, ' = atomtype ',i)
+print('-->')
 
 # Print CustomAniso portion of .xml file
-print aniso_pre_text
+print(aniso_pre_text)
 kz = []
 kx = []
 for i,(k, v) in enumerate(atom_params.items()):
@@ -272,21 +272,21 @@ for i,(k, v) in enumerate(atom_params.items()):
              [adisp] + adisp_sph +\
              [b] + cn
 
-    print template.format(*params)
-print aniso_post_text
+    print(template.format(*params))
+print(aniso_post_text)
 
 
 # Print AmoebaMultipole Portion of .xml file
-print
-print multipole_pre_text
+print()
+print(multipole_pre_text)
 local_moments, _ = format_mom.average_mom(mom_ifile,axes_ifile)
-print format_mom.convert_mom_to_xml(local_moments,kz,kx,atomtype_numbers)
+print(format_mom.convert_mom_to_xml(local_moments,kz,kx,atomtype_numbers))
 for i,(k, v) in enumerate(atom_params.items()):
     template = '<Polarize type="{}" polarizability="{:8.5e}" thole="{:6.4f}" pgrp1="{}" />'
     pgrps = list(set(atomtype_numbers) - set([atomtype_numbers[i]]))
     args = [atomtype_numbers[i]] + [v['alpha']] + [v['thole']] + pgrps
-    print template.format(*args)
-print multipole_post_text
+    print(template.format(*args))
+print(multipole_post_text)
 
 
 
