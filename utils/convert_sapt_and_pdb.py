@@ -34,7 +34,7 @@ try:
     ifile = sys.argv[1]
     ofile = sys.argv[2]
 except IndexError:
-    print error_message
+    print(error_message)
     sys.exit()
 
 res1 = 'foo'
@@ -114,7 +114,7 @@ def read_pdb(file):
         else:
             continue
 
-        print positions
+        print(positions)
 
     return info, np.array(positions,dtype=float)
 ###########################################################################
@@ -174,8 +174,36 @@ dhf                 -0.005981
 
 
 ###########################################################################
-def write_pdb(file, coords):
+def write_pdb(ofile, names,coords):
     sys.exit('PDB output not yet implemented!')
+###########################################################################
+
+###########################################################################
+def write_xyz(ofile, names,coords,title_text=""):
+    """Given a list of atom names, coordinates and a string containing the name of an
+    output file (ex. 'coordinates.xyz'), writes out the corresponding
+    outputfile in .xyz format. 
+    [[x1,y1,z1],[x2,y2,z2],...[xn,yn,zn]]
+
+    """
+    names = np.array(names)
+    names = names.flatten()
+
+    natoms = len(names)
+    title_text = title_text + "\n"
+
+    coords_shape = coords.shape
+    assert coords.shape[-1] == 3 # otherwise this is not in .xyz format
+    xyz = coords.reshape(coords.shape[0],natoms,3)
+
+    template = '{:<3} {:>16.8f} {:>16.8f} {:>16.8f}\n'
+    with open(ofile,'w') as f:
+        for geometry in xyz:
+            f.write("{:<3d}\n".format(natoms))
+            f.write(title_text)
+            for i,atom in enumerate(geometry):
+                f.write(template.format(names[i],*atom))
+    return
 ###########################################################################
 
 
@@ -190,6 +218,8 @@ if ofile.split('.')[-1] == 'sapt':
     write_sapt(ofile,names,coords)
 elif ofile.split('.')[-1] == 'pdb':
     write_pdb(ofile,names,coords)
+elif ofile.split('.')[-1] == 'xyz':
+    write_xyz(ofile,names,coords)
 else:
     sys.exit('Unrecognized output file type!')
 

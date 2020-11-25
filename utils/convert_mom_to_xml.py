@@ -32,7 +32,7 @@ try:
     mom_ifile = sys.argv[1]
     axes_ifile = sys.argv[2]
 except IndexError:
-    print error_message
+    print(error_message)
     sys.exit()
 
 
@@ -200,22 +200,22 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
     try:
         assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
     except AssertionError:
-        print 'bad rotation!!'
-        print np.max(trans_local_xyz-trans_global_xyz)
+        print('bad rotation!!')
+        print(np.max(trans_local_xyz-trans_global_xyz))
 
-        print trans_local_xyz[0]
-        print '---'
-        print trans_global_xyz[0]
+        print(trans_local_xyz[0])
+        print('---')
+        print(trans_global_xyz[0])
         sys.exit()
 
     # Check that rotation matrix actually transforms local axis into global
     # axis
     if not np.allclose(np.dot(rotation_matrix,local_xyz)[0],global_xyz):
-        print rotation_matrix
-        print local_xyz
-        print np.dot(rotation_matrix,local_xyz)
-        print 
-        print 'Rotation matrix does not actually transform local axis into global reference frame!'
+        print(rotation_matrix)
+        print(local_xyz)
+        print(np.dot(rotation_matrix,local_xyz))
+        print() 
+        print('Rotation matrix does not actually transform local axis into global reference frame!')
         sys.exit()
 
     return rotation_matrix
@@ -292,9 +292,9 @@ def read_local_axis_information(atoms,global_xyz,ifile):
             continue
         iaxis = 0 if line[1] == 'z' else 1 # list x and z axes seperately
         if axes[iatom][iaxis] != []:
-            print 'The '+line[1]+' axis for atom '+line[0]+\
-                    ' in monomer 2 has already been specified.'
-            print 'Please only use one axis specification line per axis per atom.'
+            print('The '+line[1]+' axis for atom '+line[0]+\
+                    ' in monomer 2 has already been specified.')
+            print('Please only use one axis specification line per axis per atom.')
             sys.exit()
         else:
             axes[iatom][iaxis] = [ int(i) for i in line[2:] ]
@@ -336,8 +336,8 @@ def read_local_axis_information(atoms,global_xyz,ifile):
         x_axis = magnitude*direction 
         x_axis /= np.linalg.norm(x_axis)
         if np.dot(z_axis,x_axis) > 1e-7:
-            print 'not normalized!'
-            print np.dot(z_axis,x_axis)
+            print('not normalized!')
+            print(np.dot(z_axis,x_axis))
             sys.exit()
 
         y_axis = np.cross(z_axis,x_axis)
@@ -442,7 +442,7 @@ global_xyz = np.eye(3)
 
 # Compute quaternion to rotate global axis frame to local one
 rotated_moments = []
-for iatom in xrange(len(atoms)):
+for iatom in range(len(atoms)):
     R = get_local_to_global_rotation_matrix(global_xyz[np.newaxis,...],local_axis[iatom])
     Rinv = np.linalg.inv(R)
 
@@ -456,7 +456,7 @@ au_to_nm = 0.0529177
 template = '<Multipole type="{:s}" kz="fill" kx="fill" c0="{:.6g}" d1="{:.6g}" d2="{:.6g}" d3="{:.6g}" q11="{:.6g}" q21="{:.6g}" q22="{:.6g}" q31="{:.6g}" q32="{:.6g}" q33="{:.6g}"  />'
 
 # Print labels in Cartesian coordinates and OpenMM units
-print
+print()
 for atom, m in zip(atoms,rotated_moments):
     c0 = m[0] #point charge
     d1 = m[2] # Q11c = dx = d1
@@ -484,9 +484,9 @@ for atom, m in zip(atoms,rotated_moments):
 
 
     xml = template.format(atom,c0,d1,d2,d3,q11,q21,q22,q31,q32,q33)
-    print ' '.join(xml.split())
+    print(' '.join(xml.split()))
 
-print
+print()
 
 ###########################################################################
 ###########################################################################

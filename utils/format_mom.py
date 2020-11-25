@@ -192,22 +192,22 @@ def get_local_to_global_rotation_matrix(global_xyz,local_xyz):
     try:
         assert np.allclose(trans_local_xyz,trans_global_xyz,atol=1e-5)
     except AssertionError:
-        print 'bad rotation!!'
-        print np.max(trans_local_xyz-trans_global_xyz)
+        print('bad rotation!!')
+        print(np.max(trans_local_xyz-trans_global_xyz))
 
-        print trans_local_xyz[0]
-        print '---'
-        print trans_global_xyz[0]
+        print(trans_local_xyz[0])
+        print('---')
+        print(trans_global_xyz[0])
         sys.exit()
 
     # Check that rotation matrix actually transforms local axis into global
     # axis
     if not np.allclose(np.dot(rotation_matrix,local_xyz)[0],global_xyz):
-        print rotation_matrix
-        print local_xyz
-        print np.dot(rotation_matrix,local_xyz)
-        print 
-        print 'Rotation matrix does not actually transform local axis into global reference frame!'
+        print(rotation_matrix)
+        print(local_xyz)
+        print(np.dot(rotation_matrix,local_xyz))
+        print() 
+        print('Rotation matrix does not actually transform local axis into global reference frame!')
         sys.exit()
 
     # Convert rotation matrix to Euler angles (need later for Wigner
@@ -308,9 +308,9 @@ def read_local_axis_information(atoms,global_xyz,ifile):
             continue
         iaxis = 0 if line[1] == 'z' else 1 # list x and z axes seperately
         if axes[iatom][iaxis] != []:
-            print 'The '+line[1]+' axis for atom '+line[0]+\
-                    ' in monomer 2 has already been specified.'
-            print 'Please only use one axis specification line per axis per atom.'
+            print('The '+line[1]+' axis for atom '+line[0]+\
+                    ' in monomer 2 has already been specified.')
+            print('Please only use one axis specification line per axis per atom.')
             sys.exit()
         else:
             axes[iatom][iaxis] = [ int(i) for i in line[2:] ]
@@ -323,8 +323,8 @@ def read_local_axis_information(atoms,global_xyz,ifile):
         try:
             i = axes[iatom][0][0]
         except IndexError:
-            print 'Can\'t find complete axis system for atom ',iatom
-            print 'Did you forget to specify a local axis system for this atom?'
+            print('Can\'t find complete axis system for atom ',iatom)
+            print('Did you forget to specify a local axis system for this atom?')
             raise
         z1 = global_xyz[i]
         z2 = np.mean([global_xyz[j] for j in axes[iatom][0][1:]],axis=0)
@@ -353,8 +353,8 @@ def read_local_axis_information(atoms,global_xyz,ifile):
         x_axis = magnitude*direction 
         x_axis /= np.linalg.norm(x_axis)
         if np.dot(z_axis,x_axis) > 1e-7:
-            print 'not normalized!'
-            print np.dot(z_axis,x_axis)
+            print('not normalized!')
+            print(np.dot(z_axis,x_axis))
             sys.exit()
 
         y_axis = np.cross(z_axis,x_axis)
@@ -497,7 +497,7 @@ def average_mom(ifile,iaxes,average=True,set_equal_to=False,scale=1,cutoff=1e-3,
 
     # Compute quaternion to rotate global axis frame to local one
     rotated_moments = []
-    for iatom in xrange(len(atoms)):
+    for iatom in range(len(atoms)):
         R = get_local_to_global_rotation_matrix(global_xyz[np.newaxis,...],local_axis[iatom])
         # Since we're transforming from the global to the local frame, we actually
         # need Rinv:
@@ -523,7 +523,7 @@ def average_mom(ifile,iaxes,average=True,set_equal_to=False,scale=1,cutoff=1e-3,
 
     # Get rid of too-small moments if the trim option has been selected
     if trim:
-        for atom,mom in averaged_moments.items():
+        for atom,mom in list(averaged_moments.items()):
             max_l0 = np.max(np.abs(mom[0]))
             max_l1 = np.max(np.abs(mom[1:4]))
             max_l2 = np.max(np.abs(mom[4:9]))
@@ -534,12 +534,12 @@ def average_mom(ifile,iaxes,average=True,set_equal_to=False,scale=1,cutoff=1e-3,
             averaged_moments[atom] = new_mom
 
     # Multiply all moments by specified scale factor (default 1)
-    for atom,mom in averaged_moments.items():
+    for atom,mom in list(averaged_moments.items()):
         averaged_moments[atom] = scale*mom
 
 
     rotated_moments = []
-    for iatom in xrange(len(atoms)):
+    for iatom in range(len(atoms)):
         #R = get_local_to_global_rotation_matrix(global_xyz[np.newaxis,...],local_axis[iatom])
         R = get_local_to_global_rotation_matrix(global_xyz[np.newaxis,...],local_axis[iatom])
         ## # For the backwards rotation, we actually need Rinv
@@ -571,7 +571,7 @@ def convert_mom_to_xml(moments,kz='DEFAULT',kx='DEFAULT',atomtype_numbers=[]):
     if kx=='DEFAULT':
         kx = [0 for i in moments]
     if not atomtype_numbers:
-        atomtype_numbers = range(1,len(moments)+1)
+        atomtype_numbers = list(range(1,len(moments)+1))
     assert len(atomtype_numbers) == len(kz) == len(kx) == len(moments)
 
     # Print labels in Cartesian coordinates and OpenMM units
@@ -655,7 +655,7 @@ if __name__ == '__main__':
             average=args.average,set_equal_to=args.set_equal_to,
             scale=args.scale,cutoff=args.cutoff,trim=args.trim)
 
-    print convert_mom_to_xml(local_moments)
+    print(convert_mom_to_xml(local_moments))
 
     # Write .mom file
     if args.ofile == 'FILL':
