@@ -21,8 +21,8 @@ POInter can be called directly from the command line, or can be executed from wi
 Getting Started
 ---------------
 POInter is a relatively new (and constantly updating) code. 
-Email mvanvleet at chem dot wisc dot edu
-with any questions and to ask for the most recent (stable) version of the code.
+Email mary.vanvleet at spelman dot edu
+if you're willing to become a beta tester for the code.
 
 Documentation can be found in this repository's wiki.
 
