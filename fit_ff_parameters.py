@@ -109,15 +109,6 @@ class FitFFParameters:
                 settings=['default'],
                 fit=True,
                 **kwargs
-                ## energy_file,
-                ## param_file,
-                ## output_file='coeffs.out',
-                ## slater_correction=True,
-                ## fit_bii=False,
-                ## aij_combination_rule='geometric',
-                ## bij_combination_rule='geometric_mean',
-                ## cij_combination_rule='geometric',
-                ## functional_form='born-mayer'
                 ):
 
         '''Initilialize input variables and run the main fitting code.
@@ -291,10 +282,10 @@ class FitFFParameters:
         # energies:
         self.drude_read_file = 'edrudes.dat'
 
-        # The multipolar component of the interaction energy can be computed
-        # using the Orient program. In this case, the location of the energy
-        # file (1 energy per line in the same order as the .sapt file) must be
-        # specified.
+        # The multipolar component of the interaction energy could be
+        # seperately computed using the Orient program. In this case, the
+        # location of the energy file (1 energy per line in the same order as
+        # the .sapt file) must be specified.
         self.read_multipole_energy_from_orient = False
         self.orient_multipolar_energy_file = 'orient_multipolar_energy.dat'
 
@@ -1427,7 +1418,7 @@ class FitFFParameters:
             bbound = (1e-2,1e0) # epsilon, mH
         else:
             raise NotImplementedError
-        aanisobound = (-3e0,3e0)
+        aanisobound = (-1e0,1e0)
         # For isotropic atomtypes, constrain all parameters to be positive
         # For anisotropic atomtypes, only constrain first (and possibly
         # last) parameters (corresponding to A and B, respectively) to be
@@ -1590,7 +1581,9 @@ class FitFFParameters:
                 res = minimize(self.calc_leastsq_ff_fit,p0,method='L-BFGS-B',\
                         jac=True,\
                         options={'disp':True,'gtol':pgtol,'ftol':ftol,'maxiter':maxiter},\
-                        bounds=bnds)
+                        bounds=bnds, 
+                        #constraints = [{'type':'eq','fun'=self.constrain_aniso}
+                            )
             else:
                 res = minimize(self.calc_leastsq_ff_fit,p0,method='L-BFGS-B',\
                         jac=True,\

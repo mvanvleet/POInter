@@ -38,6 +38,7 @@ multipoles_suffix          =   '_ISA_L2.mom'
 rigid_monomers             =    True
 electrostatic_damping_type          =  'None'
 include_slater_charge_penetration   =  False
+include_rackers_radial_correction   =  False
 
 # Exchange Settings: fit_bii selects whether or not to treat the ISA
 # short-range exponents are soft- (fit_bii=True) or hard-constraints

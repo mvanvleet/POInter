@@ -272,7 +272,8 @@ def y21c(theta, phi): return np.sqrt(3)*sin(2*phi)*cos(theta)       #d_xz
 def y22s(theta, phi): return np.sqrt(0.75)*sin(phi)**2*sin(2*theta) #d_xy
 def y22c(theta, phi): return np.sqrt(0.75)*sin(phi)**2*cos(2*theta) #d_x2-y2
 
-def y30(theta, phi): return cos(phi)*(2*cos(phi)**2 -3*sin(phi)**2)
+def y30(theta, phi):  return cos(phi)*(2*cos(phi)**2 -3*sin(phi)**2)
+def y32c(theta, phi): return sin(phi)*sin(2*phi)*cos(2*theta)
 
     ## y30 = cos(phi)*(2*cos(phi)**2 -3*sin(phi)**2)
     ## y32 = sin(phi)*sin(2*phi)*cos(2*theta)
@@ -286,7 +287,9 @@ sym_real_sph_harm = { 'y00' : y00 ,
                   'y21c': y21c, 
                   'y22s': y22s, 
                   'y22c': y22c, 
-                  'y30' : y30 , }
+                  'y30' : y30 , 
+                  'y32c': y32c, 
+                  }
 
 # Numpy routines of spherical harmonics
 theta, phi = sym.symbols('theta phi')
