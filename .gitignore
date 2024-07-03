@@ -2,3 +2,6 @@
 *.pik
 *.bak
 *~
+debug/*
+*.swp
+examples/deprecated/*
