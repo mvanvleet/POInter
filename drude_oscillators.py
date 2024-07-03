@@ -157,11 +157,11 @@ class Drudes:
         self.springcon1 = springcon1
         self.springcon2 = springcon2
         self.exponents = exponents
-        if type(screenlength1) == np.float:
+        if type(screenlength1) == float:
             self.screenlength1 = screenlength1*np.ones_like(self.qshell1)
         else:
             self.screenlength1 = screenlength1
-        if type(screenlength2) == np.float:
+        if type(screenlength2) == float:
             self.screenlength2 = screenlength2*np.ones_like(self.qshell2)
         else:
             self.screenlength2 = screenlength2

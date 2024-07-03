@@ -191,7 +191,7 @@ def get_rotation_quaternion(v1,v2,v_orth=np.array([]),tol=1e-10):
     dot = np.sum(v1*v2,axis=-1)
     q_vec = np.where(dot[...,np.newaxis] > -1.0 + tol,
             np.cross(v1,v2), v_orth)
-    q_vec = q_vec.astype(np.float)
+    q_vec = q_vec.astype(float)
 
     # For antiparallel vectors, rotate 180 degrees
     q_w = np.sqrt(np.sum(v1*v1,axis=-1)*np.sum(v2*v2,axis=-1)) + dot
@@ -244,11 +244,11 @@ def read_local_axes(atoms,xyz,ifile):
             z_axis = z2 - z1
             z_axis /= np.sqrt((z_axis ** 2).sum(-1))[..., np.newaxis] #Normalize
             if np.isnan(z_axis).any():
-                z_axis = np.array([0,0,1],dtype=np.float)
+                z_axis = np.array([0,0,1],dtype=float)
         else:
                 # TODO: Associate a warning with this option, as it could get
                 # the user into trouble later
-                z_axis = np.array([0,0,1],dtype=np.float)
+                z_axis = np.array([0,0,1],dtype=float)
 
         try:
             # Get x-axis from axes information unless blank
@@ -257,13 +257,13 @@ def read_local_axes(atoms,xyz,ifile):
             x2 = np.mean([xyz[j] for j in axes[iatom][1][1:]],axis=0)
             vec = x2 - x1
         except IndexError:
-            vec = np.array([1,0,0],dtype=np.float)
+            vec = np.array([1,0,0],dtype=float)
         # Project x-axis onto plane
         direction = np.cross(z_axis,np.cross(vec,z_axis))
         # In the case where a vector is perfectly in line with the z-axis,
         # return some default value for the x-axis
         if np.allclose(direction,[0,0,0]):
-            direction = np.array([1,0,0],dtype=np.float)
+            direction = np.array([1,0,0],dtype=float)
             magnitude = 1.0
         else:
             direction /= np.linalg.norm(direction)

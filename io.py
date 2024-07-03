@@ -867,6 +867,7 @@ class Energies():
                                           float(lines[j+9][1])) # dispersion
                 self.qm_energy[6].append(float(lines[j+12][1])) # E1tot+E2tot
 
+            self.qm_energy[5] = np.zeros_like(self.qm_energy[6]) # Set residual energy to zero for now
             self.qm_energy = np.array([np.array(i) for i in self.qm_energy])
 
             # Use xyz1 and xyz2 arrays to compute the r array
