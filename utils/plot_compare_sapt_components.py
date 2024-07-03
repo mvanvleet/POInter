@@ -15,7 +15,6 @@ import seaborn as sns
 import pandas as pd
 import matplotlib.patches as patches
 import itertools
-from matplotlib._png import read_png
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from mpl_toolkits.axes_grid1 import ImageGrid
 # mvanvleet specific modules
@@ -128,7 +127,7 @@ b_values = []
 for i, (component_prefix,component_suffix) in enumerate(zip(component_prefixes,component_suffixes)):
     last = (component_prefix == component_prefixes[-1])
     last = (last and component_suffix == component_suffixes[-1])
-    z=zorder.next()
+    z=next(zorder)
 
     color = palette[i]
 
@@ -141,17 +140,17 @@ for i, (component_prefix,component_suffix) in enumerate(zip(component_prefixes,c
     total_energy_file = component_prefix +  'total_energy' + component_suffix
 
     exchange = pd.read_csv(
-                    exchange_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                    exchange_file,sep='\s+',names=['qm','ff'],skiprows=1)
     electrostatics = pd.read_csv(
-                    electrostatics_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                    electrostatics_file,sep='\s+',names=['qm','ff'],skiprows=1)
     induction = pd.read_csv(
-                    induction_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                    induction_file,sep='\s+',names=['qm','ff'],skiprows=1)
     dhf = pd.read_csv(
-                    dhf_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                    dhf_file,sep='\s+',names=['qm','ff'],skiprows=1)
     dispersion = pd.read_csv(
-                    dispersion_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                    dispersion_file,sep='\s+',names=['qm','ff'],skiprows=1)
     total_energy = pd.read_csv(
-                    total_energy_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                    total_energy_file,sep='\s+',names=['qm','ff'],skiprows=1)
 
     # Convert units from Hartrees to kJ/mol
     au2kJmol = 2625.5
@@ -289,7 +288,7 @@ for i, (component_prefix,component_suffix) in enumerate(zip(component_prefixes,c
     first = False
 
 # Plot line of best fit in both the total energy and zoomed total energy views
-subplots = xrange(1,nrows*ncols+1)
+subplots = range(1,nrows*ncols+1)
 ncomponents = 8
 for count in subplots:
     ax = plt.subplot(nrows*100 + ncols*10 + count)
