@@ -1416,8 +1416,8 @@ class FitFFParameters:
             bbound = (1e-2,1e2)
         elif self.functional_form == 'lennard-jones':
             #abound = (1e0,1e2)
-            abound = (1e-2,1e2) # sigma, bohr
-            bbound = (1e-2,1e0) # epsilon, mH
+            abound = (1e-1,1e1) # sigma, bohr
+            bbound = (1e-3,2e0) # epsilon, mH
         else:
             raise NotImplementedError
         aanisobound = (-1e0,1e0)
@@ -1519,24 +1519,30 @@ class FitFFParameters:
         # parameters
         assert aanisobound not in (abound, bbound),\
         'Change code to allow for more robust determination of initial anisotropic parameters'
-        p0 = np.array([ 0.0 if bnd == aanisobound else 1 for bnd in bnds])
+        p0 = np.array([ 0.0 if bnd == aanisobound else 1.0 for bnd in bnds])
 
         if self.functional_form == 'lennard-jones' and self.component == 5:
             # I've found that the convergence properties for LJ are very
             # sensitive to the intial parameter guesses; hence the choice of
             # p0 for this force field is much more exact than for the BM
             # functional form. The choice of sigma relies on the VdW radii for
-            # an element, and the well depth is (somewhat arbitrarily) set to 0.5 mH.
+            # an element, and the well depth is (somewhat arbitrarily) set to
+            # 0.5 mH for heavy elements and 0.01 mH for first-row elements.
             from chemistry import elementdata
             from chemistry.constants import ang2bohr
-            elements = [atom[0]+list(filter(str.islower,atom[1:])) for atom in self.fit_atomtypes]
-            sigma0 = np.array([2*elementdata.VdWRadius(e) for e in elements])
+            print(self.fit_atomtypes)
+            #elements = [atom[0] for atom in self.fit_atomtypes]
+            elements = [atom[0]+atom[1].lower() if len(atom) > 1 else atom for atom in self.fit_atomtypes]
+            sigma0 = np.array([1.0*elementdata.VdWRadius(e) for e in elements])
             sigma0 *= ang2bohr
-            eps = 0.500
+            eps0 = np.array([0.200 if 'H' in e else 0.500  for e in elements])
             p0[::2] = sigma0
-            p0[1::2] *= eps
+            p0[1::2] = eps0
+            ## p0[1::2] = sigma0
+            ## p0[::2] = eps0
         self.final_energy_call = False
         self.generate_num_eij(p0)
+        print(p0)
 
         # If using a Lennard Jones force field, the only term we should be
         # fitting is the 'residual' (non-drude oscillator or
@@ -1593,6 +1599,7 @@ class FitFFParameters:
             popt = res.x
             success = res.success
             message = res.message
+            print(popt)
 
             if not res.success:
                 print('Warning! Optimizer did not terminate successfully, and quit with the following error message:')
@@ -3002,8 +3009,11 @@ class FitFFParameters:
                 aniso = self.params[atom][ib]['aniso']
                 aniso = [ an.tolist() for an in aniso ]
                 B = self.params[atom][ib]['B']
-                C = self.params[atom][ib]['C']
-                C = C.tolist()
+                if self.functional_form != 'lennard-jones':
+                    C = self.params[atom][ib]['C']
+                    C = C.tolist()
+                else:
+                    C = [0,0,0,0]
                 if atom in self.anisotropic_symmetries:
                     sph_harm = self.anisotropic_symmetries[atom]
                 else:

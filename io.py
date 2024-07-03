@@ -1109,10 +1109,15 @@ class Settings(object):
                 elif v.lower() in ['slater-rackers']:
                     self.pointer_settings['slater_correction'] = True
                     self.pointer_settings['include_rackers_radial_correction'] = True
+                elif v.lower() in ['lennard-jones']:
+                    self.pointer_settings['functional_form'] = 'lennard-jones'
+                    # Now a = sigma and b = epsilon
+                    self.pointer_settings['aij_combination_rule'] = 'arithmetic_mean'
+                    self.pointer_settings['bij_combination_rule'] = 'geometric_mean'
                 else:
                     assert False,\
                         '"{}" is not a valid option for {}. '.format(v,k) +\
-                        'Valid options are "slater-isa", "born-mayer-sisa", and "born-mayer-ip".'
+                        'Valid options are "slater-isa", "born-mayer-sisa", "born-mayer-ip", and "lennard-jones".'
             else:
                 self.pointer_settings[k] = v
 
