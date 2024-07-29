@@ -67,13 +67,6 @@ parser.add_argument("--asymptotic_scale", help=asymptoticscalehelp,\
 
 args = parser.parse_args()
 
-## try:
-##     component_prefix = sys.argv[1]
-##     component_suffix = sys.argv[2]
-## except IndexError:
-##     component_prefix = 'fit_exp_'
-##     component_suffix = '_unconstrained.dat'
-
 component_prefix = args.prefix
 component_suffix = args.suffix
 
@@ -85,13 +78,6 @@ dhf_file = component_prefix +  'dhf' + component_suffix
 dispersion_file = component_prefix +  'dispersion' + component_suffix
 total_energy_file = component_prefix +  'total_energy' + component_suffix
 
-## exchange_file = 'slater_exchange_unconstrained.dat'
-## electrostatics_file = 'slater_electrostatics_unconstrained.dat'
-## induction_file = 'slater_induction_unconstrained.dat'
-## dhf_file = 'slater_dhf_unconstrained.dat'
-## dispersion_file = 'slater_dispersion_unconstrained.dat'
-## total_energy_file = 'slater_total_energy_unconstrained.dat'
-
 ###########################################################################
 ###########################################################################
 
@@ -102,17 +88,17 @@ total_energy_file = component_prefix +  'total_energy' + component_suffix
 # Read data from each energy component
 
 exchange = pd.read_csv(
-                exchange_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                exchange_file,sep='\s+',names=['qm','ff'],skiprows=1)
 electrostatics = pd.read_csv(
-                electrostatics_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                electrostatics_file,sep='\s+',names=['qm','ff'],skiprows=1)
 induction = pd.read_csv(
-                induction_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                induction_file,sep='\s+',names=['qm','ff'],skiprows=1)
 dhf = pd.read_csv(
-                dhf_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                dhf_file,sep='\s+',names=['qm','ff'],skiprows=1)
 dispersion = pd.read_csv(
-                dispersion_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                dispersion_file,sep='\s+',names=['qm','ff'],skiprows=1)
 total_energy = pd.read_csv(
-                total_energy_file,delim_whitespace=True,names=['qm','ff'],skiprows=1)
+                total_energy_file,sep='\s+',names=['qm','ff'],skiprows=1)
 
 # Convert units from Hartrees to kjmol
 au2kjmol = 2625.5
@@ -137,14 +123,6 @@ xmin = min_energy
 include_points = np.all([xmin*np.ones_like(eng) < eng,
                          xmax*np.ones_like(eng) > eng],axis=0)
 
-exchange = exchange[include_points]
-electrostatics = electrostatics[include_points]
-induction = induction[include_points]
-dhf = dhf[include_points]
-dispersion = dispersion[include_points]
-total_energy = total_energy[include_points]
-
-
 # Set some global color preferences for how the graph's colors should look
 sns.set_context('paper')
 sns.axes_style("darkgrid")
@@ -157,6 +135,7 @@ vmin=min(total_energy['qm'])
 cmap = sns.cubehelix_palette(8, start=.5, rot=-.75,as_cmap=True, reverse=True)
 order = np.argsort(total_energy['qm'])[::-1]
 colors = total_energy['qm'][order]
+include_points = include_points[order]
 
 # Overal graph layout and title
 ncols=4
@@ -175,12 +154,14 @@ for component in electrostatics,exchange,dispersion,induction,dhf,total_energy:
     #i = np.abs(total_energy['qm'][order]).argmin()
     ## y_qm = component['qm'][order][i:]
     ## y_ff = component['ff'][order][i:]
-    x = total_energy['qm'][order]
-    y_qm = component['qm'][order]
-    y_ff = component['ff'][order]
+    points = [o for o in order if o in include_points ]
+    print('points')
+    print(points)
+    x = total_energy['qm'][order][include_points]
+    y_qm = component['qm'][order][include_points]
+    y_ff = component['ff'][order][include_points]
     y = y_qm - y_ff
     ymax = np.amax(np.where(x < args.cutoff, np.abs(y), 0))
-    #ymax = np.amax(np.where(x < 0, y, 0))
     xy_max = max(ymax,xy_max)
     xy_min = -xy_max
 
@@ -192,12 +173,7 @@ for component in electrostatics,exchange,None,(induction+dhf),dispersion,None:
     count += 1
     if count > 3:
         # Ignore last column for now
-        #ax = plt.subplot(nrows*100 + ncols*10 + count + 1)
         ax = plt.subplot(gs[count])
-        #ax = plt.subplot(gs[count],sharey=ax,sharex=ax)
-    ## elif count > 1:
-    ##     #ax = plt.subplot(nrows*100 + ncols*10 + count)
-    ##     ax = plt.subplot(gs[count-1],sharey=ax,sharex=ax)
     else:
         ax = plt.subplot(gs[count-1])
     if component is None:
@@ -220,8 +196,6 @@ for component in electrostatics,exchange,None,(induction+dhf),dispersion,None:
 
     # Axes scaling and title settings
     scale = 0.02
-    ## xy_max = max(np.amax(np.abs(x)),np.amax(np.abs(y)))
-    ## xy_min = -xy_max
     lims = [ xy_min - scale*abs(xy_max - xy_min), 
              xy_max + scale*abs(xy_max - xy_min) ]
     if titles[count-1] == titles[-1]:
@@ -262,14 +236,14 @@ for component in electrostatics,exchange,induction,dhf,dispersion,total_energy:
     ymin_i = np.amin(np.where(x < args.cutoff, y, 0))
     ymax_i = np.amax(np.where(x < args.cutoff, y, 0))
     (ymin,ymax) = (min(ymin,ymin_i),max(ymax,ymax_i))
-    label=labels.next()
+    label=next(labels)
     if label == 'Total Energy':
         sc = plt.scatter(x,y,
                 facecolors='none', edgecolors='k', s=25, lw = 0.75,
                 #c=colors, vmin=vmin, vmax=vmax, cmap=cmap, s=25, lw =.75,
                 label=label,zorder=10)
     else:
-        plt.plot(x,y,marker = marker.next(), markersize=5, linestyle='', label=label)
+        plt.plot(x,y,marker = next(marker), markersize=5, linestyle='', label=label)
 ax.set_xlabel('SAPT Energy (kjmol)')
 ax.set_ylabel('Absolute Error (FF Energy - QM energy) (kjmol)')
 ax.set_title('Absolute Error in FF Fitting')
