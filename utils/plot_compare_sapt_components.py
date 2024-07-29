@@ -235,7 +235,10 @@ for i, (component_prefix,component_suffix) in enumerate(zip(component_prefixes,c
         xy_max = max(np.amax(x),np.amax(y))
         if titles[count-1] == titles[-1]:
             xy_max = 0.0
-        m, b = np.polyfit(x, y, 1)
+        try:
+            m, b = np.polyfit(x, y, 1)
+        except np.linalg.LinAlgError:
+            m, b = np.NaN, np.NaN
         m_values.append(m)
         b_values.append(b)
             ## ax.plot(np.array(lims),m*np.array(lims)+b,':',color=color)
